@@ -30,11 +30,11 @@
                         <td>#{{ consent.id }}</td>
 
                         <td>
-                            {{ consent.data_subject.first_name }}
-                            {{ consent.data_subject.last_name }}
+                            {{ consent.patient.first_name }}
+                            {{ consent.patient.last_name }}
                         </td>
 
-                        <td>{{ consent.processor.organization_name }}</td>
+                        <td>{{ consent.data_processor.organization_name }}</td>
 
                         <td>{{ consent.purpose }}</td>
 

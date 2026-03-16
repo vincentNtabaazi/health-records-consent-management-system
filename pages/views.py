@@ -19,5 +19,5 @@ def consent_records(request):
 def policies(request):
     return render(request, 'pages/policies.html')
 
-def data_subjects(request):
-    return render(request, 'pages/data_subjects.html')
+def dashboard_view(request):
+    return render(request, 'pages/dashboard.html')
