@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     'users',
     'pages',
     'consents',
+    'patients',
     
     # Default apps
     'django.contrib.admin',

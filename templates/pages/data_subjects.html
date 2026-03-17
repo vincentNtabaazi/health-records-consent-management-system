@@ -2,5 +2,95 @@
 {% include "pages/home.html" %}
 
 {% block content %}
-    <p>This is where data subjects will go.</p>
+<!-- Main content area -->
+<div class="container-fluid py-4 bg-light">
+    <div class="row g-4">
+        {% for subject in data_subjects_list %}
+        <div class="col-12 col-lg-6">
+            <div class="card shadow-sm border-0 rounded-4 h-100">
+                <div class="card-body d-flex flex-column flex-md-row align-items-md-center">
+
+                    <!-- Info Section -->
+                    <div class="flex-grow-1">
+                        <h5 class="fw-bold mb-1">{{ subject.name }}</h5>
+                        <h6 class="text-muted small mb-3">ID: {{ subject.id }}</h6>
+
+                        <hr>
+
+                        <p class="mb-2">
+                            <i class="fas fa-envelope text-primary me-2"></i>
+                            {{ subject.email }}
+                        </p>
+
+                        <p class="mb-2">
+                            <i class="fas fa-file-contract text-primary me-2"></i>
+                            Active Consents:
+                            <span class="badge bg-success ms-1">
+                                {{ subject.active_consents }}
+                            </span>
+                        </p>
+
+                        <p class="mb-0">
+                            <i class="fas fa-clock text-primary me-2"></i>
+                            Last Update: {{ subject.last_update|date:"Y-m-d" }}
+                        </p>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="d-flex flex-md-column gap-2 ms-md-4 mt-3 mt-md-0">
+                        <a href="" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-eye me-1"></i> View
+                        </a>
+                        <a href="" class="btn btn-outline-secondary btn-sm">
+                            <i class="fas fa-edit me-1"></i> Edit
+                        </a>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="alert alert-info text-center">
+                No data subjects found. Click "Add Subject" to get started!
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    <div class="d-flex justify-content-center mt-5">
+        <nav>
+            <ul class="pagination">
+
+                {% if data_subjects_list.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ data_subjects_list.previous_page_number }}">Previous</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">Previous</span>
+                </li>
+                {% endif %}
+
+                {% for i in data_subjects_list.paginator.page_range %}
+                <li class="page-item {% if data_subjects_list.number == i %}active{% endif %}">
+                    <a class="page-link" href="?page={{ i }}">{{ i }}</a>
+                </li>
+                {% endfor %}
+
+                {% if data_subjects_list.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ data_subjects_list.next_page_number }}">Next</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">Next</span>
+                </li>
+                {% endif %}
+
+            </ul>
+        </nav>
+    </div>
+</div>
 {% endblock %}

@@ -1,6 +1,8 @@
 from django.contrib import messages
 from django.contrib.auth import login, logout
 from django.shortcuts import render, redirect
+
+from .models import Role
 from .utils import authenticate
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import make_password
@@ -16,6 +18,8 @@ def signup_view(request):
         role         = request.POST.get("role")
         password1    = request.POST.get("password1")
         password2    = request.POST.get("password2")
+
+        role = Role.objects.get(name=role)
 
         # Basic validation
         if password1 != password2:
