@@ -16,7 +16,7 @@ Create virtual environment
 Activate virtual environment
 
 ```bash
-    source venv/bin/activate (This is for macos you can search if you are on another operating system)
+    source .venv/bin/activate (This is for macos you can search if you are on another operating system)
 ```
 
 Install Django
