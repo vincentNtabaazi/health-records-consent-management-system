@@ -25,7 +25,7 @@ class MedicalRecord(models.Model):
     data_category = models.CharField(
         max_length=100,
         choices=DATA_CATEGORY_CHOICES,
-        default='diagnosis', # Set a sensible default value
+        default='diagnosis',
         help_text="Select the category of the medical record data."
     )
     created_at = models.DateTimeField(auto_now_add=True)
