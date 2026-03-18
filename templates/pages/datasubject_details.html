@@ -1,0 +1,205 @@
+{% extends 'pages/home.html' %}
+{% load static %}
+
+{% block content %}
+<!--<div class="row mb-4 align-items-center">-->
+<!--    <div class="col-auto">-->
+<!--        {# Patient Avatar #}-->
+<!--        <img src="https://via.placeholder.com/50/0d6efd/FFFFFF?text=A" alt="Patient Avatar" class="rounded-circle border border-primary">-->
+<!--    </div>-->
+<!--    <div class="col">-->
+<!--        {# Patient Name #}-->
+<!--        <h3 class="mb-0 text-dark fw-bold">{{ patient.name }}</h3>-->
+<!--    </div>-->
+<!--    <div class="col-auto">-->
+<!--        {# Icons from image - assuming general actions #}-->
+<!--        <a href="#" class="btn btn-outline-secondary me-2 rounded-circle border-0" title="Contact"><i class="bi bi-chat-dots fs-5"></i></a>-->
+<!--        <a href="#" class="btn btn-outline-secondary rounded-circle border-0" title="Settings"><i class="bi bi-gear fs-5"></i></a>-->
+<!--    </div>-->
+<!--</div>-->
+
+<div class="row">
+    {# Left Column: Medical Records Timeline #}
+    <div class="col-lg-8">
+        <div class="card shadow-sm mb-4" style="height: 80vh;">
+            <!-- Tabs -->
+            <div class="card-header bg-white border-bottom">
+                <ul class="nav nav-tabs card-header-tabs" id="recordTabs" role="tablist">
+                    <li class="nav-item">
+                        <button class="nav-link active" id="timeline-tab" data-bs-toggle="tab"
+                                data-bs-target="#timeline" type="button">
+                            Timeline
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" id="consents-tab" data-bs-toggle="tab" data-bs-target="#consents"
+                                type="button">
+                            Consents
+                        </button>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Tab Content -->
+            <div class="tab-content" style="height: 100%;">
+
+                <!-- TIMELINE TAB -->
+                <div class="tab-pane fade show active h-100" id="timeline">
+                    <div class="card-body p-0 h-100 d-flex flex-column">
+                        <div class="table-responsive flex-grow-1" style="overflow-y: auto;">
+                            <table class="table table-borderless mb-0"> {# Using table-borderless #}
+                                <thead class="bg-light">
+                                <tr>
+                                    <th scope="col" class="py-3 px-4 text-muted text-uppercase small">Date</th>
+                                    <th scope="col" class="py-3 px-4 text-muted text-uppercase small">Category</th>
+                                    <th scope="col" class="py-3 px-4 text-muted text-uppercase small">Title</th>
+                                    <th scope="col" class="py-3 px-4 text-muted text-uppercase small"></th>
+                                    {# For icon #}
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {% for record in medical_records %}
+                                <tr class="border-bottom border-light"> {# Subtle border for rows #}
+                                    <td class="py-3 px-4 text-nowrap">
+                                        <span class="d-block fw-semibold">{{ record.created_at|date:"M d, Y" }}</span>
+                                    </td>
+                                    <td class="py-3 px-4">
+                                        {# Using Bootstrap colors based on category #}
+                                        {% if record.data_category == 'diagnosis' %}
+                                        <span class="badge bg-primary rounded-3 text-uppercase px-3 py-2 fw-normal">{{ record.get_data_category_display }}</span>
+                                        {% elif record.data_category == 'treatment' %}
+                                        <span class="badge bg-success rounded-3 text-uppercase px-3 py-2 fw-normal">{{ record.get_data_category_display }}</span>
+                                        {% elif record.data_category == 'mental_health' %}
+                                        <span class="badge bg-purple rounded-3 text-uppercase px-3 py-2 fw-normal"
+                                              style="background-color: #6f42c1;">{{ record.get_data_category_display }}</span>
+                                        {% elif record.data_category == 'billing' %}
+                                        <span class="badge bg-warning rounded-3 text-dark text-uppercase px-3 py-2 fw-normal">{{ record.get_data_category_display }}</span>
+                                        {% elif record.data_category == 'lab_results' %}
+                                        <span class="badge bg-danger rounded-3 text-uppercase px-3 py-2 fw-normal">{{ record.get_data_category_display }}</span>
+                                        {% elif record.data_category == 'medication' %}
+                                        <span class="badge bg-secondary rounded-3 text-uppercase px-3 py-2 fw-normal">{{ record.get_data_category_display }}</span>
+                                        {% elif record.data_category == 'allergies' %}
+                                        <span class="badge bg-dark rounded-3 text-uppercase px-3 py-2 fw-normal">{{ record.get_data_category_display }}</span>
+                                        {% elif record.data_category == 'immunization' %}
+                                        <span class="badge bg-info rounded-3 text-dark text-uppercase px-3 py-2 fw-normal">{{ record.get_data_category_display }}</span>
+                                        {% else %}
+                                        <span class="badge bg-light rounded-3 text-dark text-uppercase px-3 py-2 fw-normal">{{ record.get_data_category_display }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="py-3 px-4 fw-medium text-dark">{{ record.title }}</td>
+                                    <td class="py-3 px-4 text-end">
+                                        {# Icons as seen in image for category-specific actions/visuals #}
+                                        {% if record.data_category == 'diagnosis' %}
+                                        <i class="bi bi-activity text-primary fs-5"></i>
+                                        {% elif record.data_category == 'treatment' %}
+                                        <i class="bi bi-capsule text-success fs-5"></i>
+                                        {% elif record.data_category == 'mental_health' %}
+                                        <i class="bi bi-emoji-smile text-purple fs-5" style="color: #6f42c1;"></i>
+                                        {% elif record.data_category == 'billing' %}
+                                        <i class="bi bi-currency-dollar text-warning fs-5"></i>
+                                        {% elif record.data_category == 'lab_results' %}
+                                        <i class="bi bi-clipboard-data text-danger fs-5"></i>
+                                        {% elif record.data_category == 'medication' %}
+                                        <i class="bi bi-pencil-square text-secondary fs-5"></i>
+                                        {% elif record.data_category == 'allergies' %}
+                                        <i class="bi bi-exclamation-triangle text-dark fs-5"></i>
+                                        {% elif record.data_category == 'immunization' %}
+                                        <i class="bi bi-shield-check text-info fs-5"></i>
+                                        {% else %}
+                                        <i class="bi bi-journal text-muted fs-5"></i>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center p-4 text-muted">No medical records found for this
+                                        patient.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CONSENTS TAB -->
+                <div class="tab-pane fade h-100" id="consents">
+                    <div class="card-body h-100" style="overflow-y: auto;">
+
+                        {% if consents %}
+                        {% for consent in consents %}
+                        <div class="border-bottom py-3">
+                            <h6 class="mb-1">{{ consent.title }}</h6>
+                            <p class="text-muted small mb-1">
+                                {{ consent.created_at|date:"M d, Y" }}
+                            </p>
+                            <span class="badge bg-success">{{ consent.status }}</span>
+                        </div>
+                        {% endfor %}
+                        {% else %}
+                        <p class="text-muted">No consents found.</p>
+                        {% endif %}
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    {# Right Column: Patient Details, Upcoming Appointments, Quick Actions #}
+    <div class="col-lg-4">
+        {# Patient Details Card #}
+        <div class="card shadow-sm mb-4">
+            <div class="card-body p-4">
+                <div class="d-flex align-items-center mb-3">
+                    <img src="https://cdn-icons-png.flaticon.com/512/12157/12157353.png" alt="Patient Avatar"
+                         class="rounded-circle me-3 border border-primary"
+                         style="width: 60px; height: 60px; object-fit: cover;">
+                    <div>
+                        <h5 class="mb-0 fw-semibold text-dark">{{ patient.user.first_name }} {{ patient.user.last_name
+                            }}</h5>
+                        <p class="text-muted small mb-0">{{ patient.user.email }}</p>
+                    </div>
+                </div>
+                <h6 class="text-muted text-uppercase small mb-2">Patient Details</h6>
+                <p class="mb-1"><strong>Date Born:</strong> {{ patient.date_of_birth|date:"M d, Y" }}</p>
+                <p class="mb-1"><strong>Contact:</strong> {{ patient.phone_number }}</p>
+            </div>
+        </div>
+
+        {# Upcoming Appointments Card #}
+        <div class="card shadow-sm mb-4">
+            <div class="card-body p-4">
+                <h6 class="text-muted text-uppercase small mb-3">Upcoming Appointments</h6>
+                {# Example appointments - you'd fetch these from a related model #}
+                {% if upcoming_appointments %} {# Assuming you pass this context from view #}
+                <ul class="list-group list-group-flush">
+                    {% for appointment in upcoming_appointments %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-2">
+                        <div>
+                            <span class="d-block fw-semibold text-dark">{{ appointment.title }}</span>
+                            <span class="text-muted small">{{ appointment.date_time|date:"M d, H:i" }} with {{ appointment.doctor_name }}</span>
+                        </div>
+                        <i class="bi bi-chevron-right text-muted"></i>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted small mb-0">No upcoming appointments.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        {# Quick Actions Card #}
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                <h6 class="text-muted text-uppercase small mb-3">Quick Actions</h6>
+                <button class="btn btn-primary w-100 py-2"><i class="bi bi-plus-circle me-2"></i> Add New Record
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
