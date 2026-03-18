@@ -9,6 +9,10 @@ from django.contrib.auth.hashers import make_password
 
 User = get_user_model()
 
+def create_patient(user):
+    from patients.models import Patient
+    Patient.objects.create(user=user)
+
 def signup_view(request):
     if request.method == "POST":
         first_name   = request.POST.get("first_name")
@@ -45,6 +49,9 @@ def signup_view(request):
 
         user.password = make_password(password1)
         user.save()
+
+        if role.name == "Patient":
+            create_patient(user)
 
         messages.success(request, "Account created successfully. You can now log in.")
         return redirect("users:login_view")

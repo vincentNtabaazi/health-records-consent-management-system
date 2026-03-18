@@ -2,6 +2,10 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from consents.models import Consent
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+
+from patients.models import MedicalRecord
+from django.db.models import Count
+from services.generate_medical_records import populate_medical_records
 from users.models import User
 
 
@@ -53,4 +57,27 @@ def policies(request):
     return render(request, 'pages/policies.html')
 
 def dashboard_view(request):
+    populate_medical_records()
     return render(request, 'pages/dashboard.html')
+
+def medical_records(request):
+    # Fetch all medical records, ordered by creation date (most recent first)
+    all_records = MedicalRecord.objects.select_related('patient').order_by('-created_at')
+
+    # Apply pagination
+    paginator = Paginator(all_records, 10)  # Show 10 records per page
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    # Optional: Get counts for each category
+    category_counts = MedicalRecord.objects.values('data_category').annotate(count=Count('data_category'))
+    category_counts_dict = {
+        dict(MedicalRecord.DATA_CATEGORY_CHOICES).get(item['data_category'], item['data_category']): item['count']
+        for item in category_counts
+    }
+
+    context = {
+        'medical_records': page_obj,
+        'category_counts': category_counts_dict,
+    }
+    return render(request, 'pages/medical_records.html', context)
