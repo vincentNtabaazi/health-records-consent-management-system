@@ -2,6 +2,7 @@ import random
 from datetime import datetime, timedelta
 from django.utils import timezone
 from patients.models import MedicalRecord, Patient
+from users.models import CustomPermission
 
 
 def populate_medical_records(num_records=50, patient_id_start=1, patient_id_end=6):
@@ -82,3 +83,21 @@ def populate_medical_records(num_records=50, patient_id_start=1, patient_id_end=
             continue
 
     print(f"Successfully created {records_created} medical records.")
+
+def generate_medical_permissions():
+
+    actions = ["create", "read", "edit", "delete"]
+
+    permissions = []
+
+    for value, display in MedicalRecord.DATA_CATEGORY_CHOICES:
+        for action in actions:
+            perm_name = f"can_{action}_{value}_records"
+
+            # Avoid duplicates
+            obj, created = CustomPermission.objects.get_or_create(name=perm_name)
+
+            if created:
+                permissions.append(perm_name)
+
+    return permissions

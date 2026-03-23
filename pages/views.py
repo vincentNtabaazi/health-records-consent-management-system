@@ -2,10 +2,9 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from consents.models import Consent
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
-
-from patients.models import MedicalRecord
+from patients.models import MedicalRecord, Patient
 from django.db.models import Count
-from services.generate_medical_records import populate_medical_records
+from services.generate_medical_records import populate_medical_records, generate_medical_permissions
 from users.models import User
 
 
@@ -14,7 +13,7 @@ def home(request):
     return render(request, 'pages/home.html')
 
 def data_subjects(request):
-    data_subjects_list = User.objects.filter(role_id=6).order_by('id')
+    data_subjects_list = Patient.objects.filter().order_by('id')
 
     # Set up Paginator
     paginator = Paginator(data_subjects_list, 6)  # Show 6 data subjects per page
@@ -57,7 +56,7 @@ def policies(request):
     return render(request, 'pages/policies.html')
 
 def dashboard_view(request):
-    populate_medical_records()
+    # generate_medical_permissions()
     return render(request, 'pages/dashboard.html')
 
 def medical_records(request):

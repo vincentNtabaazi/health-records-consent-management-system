@@ -50,13 +50,14 @@ def signup_view(request):
         user.password = make_password(password1)
         user.save()
 
-        if role.name == "Patient":
+        if role.name == "subject":
             create_patient(user)
 
         messages.success(request, "Account created successfully. You can now log in.")
         return redirect("users:login_view")
 
-    return render(request, "users/signup.html")
+    roles = Role.objects.all()
+    return render(request, "users/signup.html", {"roles": roles})
 
 def login_view(request):
 

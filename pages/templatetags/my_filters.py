@@ -16,3 +16,12 @@ def replace_chars(value, arg):
             # Handle cases where arg is not in 'old,new' format
             return value
     return value
+
+@register.filter
+def dict_get(dictionary, key):
+    return dictionary.get(key, [])
+
+@register.filter
+def replace_underscore(value):
+    """Replaces underscores with spaces"""
+    return str(value).replace("_", " ")

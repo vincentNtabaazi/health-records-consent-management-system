@@ -12,33 +12,33 @@
 
                     <!-- Info Section -->
                     <div class="flex-grow-1">
-                        <h5 class="fw-bold mb-1">{{subject.first_name}} {{subject.last_name}}</h5>
+                        <h5 class="fw-bold mb-1">{{subject.user.first_name}} {{subject.user.last_name}}</h5>
                         <h6 class="text-muted small mb-3">ID: {{ subject.id }}</h6>
 
                         <hr>
 
                         <p class="mb-2">
                             <i class="fas fa-envelope text-primary me-2"></i>
-                            {{ subject.email }}
+                            {{ subject.user.email }}
                         </p>
 
                         <p class="mb-2">
                             <i class="fas fa-file-contract text-primary me-2"></i>
                             Active Consents:
                             <span class="badge bg-success ms-1">
-                                {{ subject.active_consents }}
+                                {{ subject.user.active_consents }}
                             </span>
                         </p>
 
                         <p class="mb-0">
                             <i class="fas fa-clock text-primary me-2"></i>
-                            Last Update: {{ subject.last_update|date:"Y-m-d" }}
+                            Last Update: {{ subject.user.last_update|date:"Y-m-d" }}
                         </p>
                     </div>
 
                     <!-- Actions -->
                     <div class="d-flex flex-md-column gap-2 ms-md-4 mt-3 mt-md-0">
-                        <a href="" class="btn btn-outline-primary btn-sm">
+                        <a href="{% url 'patients:patient_medical_timeline' subject.id %}" class="btn btn-outline-primary btn-sm">
                             <i class="fas fa-eye me-1"></i> View
                         </a>
                         <a href="" class="btn btn-outline-secondary btn-sm">
