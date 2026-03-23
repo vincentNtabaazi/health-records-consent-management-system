@@ -4,7 +4,7 @@ from consents.models import Consent
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from patients.models import MedicalRecord, Patient
 from django.db.models import Count
-from services.generate_medical_records import populate_medical_records
+from services.generate_medical_records import populate_medical_records, generate_medical_permissions
 from users.models import User
 
 
@@ -56,7 +56,7 @@ def policies(request):
     return render(request, 'pages/policies.html')
 
 def dashboard_view(request):
-    populate_medical_records()
+    # generate_medical_permissions()
     return render(request, 'pages/dashboard.html')
 
 def medical_records(request):

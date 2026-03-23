@@ -37,7 +37,7 @@
                     {% for record in medical_records %}
                     <tr class="align-middle" onclick="">
                         <td class="py-3 px-4">
-                            <a href="" class="text-decoration-none text-primary fw-semibold">
+                            <a href="{% url 'patients:patient_medical_timeline' record.patient.id %}" class="text-decoration-none text-primary fw-semibold">
                                 {{ record.patient.user.first_name }} {{ record.patient.user.last_name }}
                             </a>
                         </td>

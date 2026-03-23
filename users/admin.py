@@ -1,5 +1,5 @@
 from django.contrib import admin
-from users.models import User, RolePermission, Role, Permission
+from users.models import User, RolePermission, Role, CustomPermission
 
 # Register your models here.
 admin.site.register(User)
@@ -12,4 +12,4 @@ class RolePermissionAdmin(admin.ModelAdmin):
 
 admin.site.register(RolePermission, RolePermissionAdmin)
 admin.site.register(Role)
-admin.site.register(Permission)
+admin.site.register(CustomPermission)
