@@ -5,35 +5,66 @@
 {% block content %}
 <div class="row">
     {# Modal for Editing Consents #}
-    <div class="modal fade" id="editConsentModal" tabindex="-1" aria-labelledby="editConsentModalLabel"
-         aria-hidden="true">
+    <div class="modal fade" id="editConsentModal" tabindex="-1"
+         aria-labelledby="editConsentModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="editConsentModalLabel">Edit Consents</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <!-- Your form or content goes here -->
-                    {% if roles %}
-                    {% for role in roles %}
-                    <div class="border-bottom py-3">
-                        <h6 class="mb-1">{{ role.get_name_display }}</h6>
-                        <p class="text-muted large mb-1">
-                            {% for perm in all_permissions|dict_get:role.id %}
-                            <span class="badge bg-secondary">{{ perm.permission.name|replace_underscore  }}</span>
-                            {% empty %}
-                            <span class="text-muted">No permissions assigned</span>
-                            {% endfor %}
-                        </p>
+
+                <form method="POST" action="{% url 'patients:update_patient_permissions' patient.id %}">
+                    {% csrf_token %}
+
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="editConsentModalLabel">Edit Consents</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
-                    {% endfor %}
-                    {% endif %}
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-primary">Save changes</button>
-                </div>
+
+                    <div class="modal-body">
+                        {% if roles %}
+                        {% for role in roles %}
+                        <div class="border-bottom py-3">
+                            <h6 class="mb-3">{{ role.get_name_display }}</h6>
+
+                            <div class="row">
+                                {% for perm in all_permissions|dict_get:role.id %}
+                                <div class="col-md-6 col-lg-4 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input"
+                                               type="checkbox"
+                                               id="perm-{{ role.id }}-{{ perm.id }}"
+                                               name="permissions_{{ role.id }}[]"
+                                               value="{{ perm.id }}"
+                                               {% if perm.is_assigned %}checked{% endif %}>
+
+                                        <label class="form-check-label"
+                                               for="perm-{{ role.id }}-{{ perm.id }}">
+                                            {{ perm.name|replace_underscore }}
+                                        </label>
+                                    </div>
+                                </div>
+                                {% empty %}
+                                <div class="col-12">
+                                    <span class="text-muted">No permissions assigned</span>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% else %}
+                        <p>No roles found.</p>
+                        {% endif %}
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary"
+                                data-bs-dismiss="modal">Close</button>
+
+                        <button type="submit" class="btn btn-primary">
+                            Save changes
+                        </button>
+                    </div>
+
+                </form>
+
             </div>
         </div>
     </div>
