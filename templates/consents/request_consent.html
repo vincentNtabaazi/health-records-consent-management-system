@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-3">
+    <div>
+      <h2 class="mb-1">Request consent</h2>
+      <p class="text-muted mb-0">
+        Submit a permission request to {{ patient.user.get_full_name|default:patient.user.username }}.
+      </p>
+    </div>
+    <a href="{% url 'patients:patient_medical_timeline' patient.id %}" class="btn btn-outline-secondary">Back</a>
+  </div>
+
+  <form method="post" class="card shadow-sm border-0">
+    {% csrf_token %}
+    <div class="card-body p-4">
+      <div class="alert alert-light border mb-4">
+        The approval path is assigned automatically by the system. A request that fully matches the subject's sharing preferences will be auto-approved. Otherwise it will go to manual review, where the subject can approve all permissions, approve only some of them, or reject the request.
+      </div>
+
+      <div class="row g-4">
+        <div class="col-md-9">
+          <label class="form-label fw-semibold">Purpose</label>
+          {{ form.purpose }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-semibold">Expiry date</label>
+          {{ form.expiry_date }}
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-semibold">Notes</label>
+          {{ form.notes }}
+        </div>
+      </div>
+
+      <hr class="my-4">
+
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div>
+          <h5 class="mb-1">Choose permissions</h5>
+          <p class="text-muted mb-0">Your role can only request the permissions configured for it.</p>
+        </div>
+        <span class="badge bg-light text-dark border">Auto-approval happens when every selected permission already exists in the subject's sharing preferences.</span>
+      </div>
+
+      {% if grouped_permissions %}
+        <div class="row g-3">
+          {% for category, perms in grouped_permissions.items %}
+            <div class="col-lg-4 col-md-6">
+              <div class="card h-100 border-0 shadow-sm bg-light">
+                <div class="card-header bg-transparent border-0 fw-semibold text-capitalize">{{ category }}</div>
+                <div class="card-body">
+                  {% for perm in perms %}
+                    <div class="form-check mb-2">
+                      <input class="form-check-input"
+                             type="checkbox"
+                             name="permission_ids"
+                             id="perm_{{ perm.id }}"
+                             value="{{ perm.id }}"
+                             {% if perm.id|stringformat:'s' in selected_permission_ids %}checked{% endif %}>
+                      <label class="form-check-label" for="perm_{{ perm.id }}">
+                        {{ perm.label }}
+                        {% if perm.id|stringformat:'s' in preconsented_permission_ids %}
+                          <span class="badge bg-success-subtle text-success-emphasis border ms-2">subject pre-consented</span>
+                        {% endif %}
+                      </label>
+                    </div>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="alert alert-warning mb-0">No requestable permissions are configured for your role yet.</div>
+      {% endif %}
+
+      {% if form.errors %}
+        <div class="alert alert-danger mt-3 mb-0">
+          {{ form.errors }}
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="card-footer bg-white d-flex justify-content-end gap-2">
+      <a href="{% url 'patients:patient_medical_timeline' patient.id %}" class="btn btn-outline-secondary">Cancel</a>
+      <button type="submit" class="btn btn-primary">Send request</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

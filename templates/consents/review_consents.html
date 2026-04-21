@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h2 class="mb-1">Pending consent requests</h2>
+      <p class="text-muted mb-0">Open a request to approve all permissions, approve part of them, or reject it.</p>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    {% for consent in pending_consents %}
+      <div class="col-lg-6">
+        <div class="card shadow-sm border-0 h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+              <div>
+                <h5 class="mb-1">{{ consent.data_processor.get_full_name|default:consent.data_processor.username }}</h5>
+                <div class="text-muted small">{{ consent.data_processor.role.get_name_display }}</div>
+              </div>
+              <span class="badge bg-warning text-dark">Pending</span>
+            </div>
+
+            <p class="mb-2"><strong>Purpose:</strong> {{ consent.purpose }}</p>
+            <p class="mb-2"><strong>Categories:</strong> {{ consent.data_type }}</p>
+            <p class="mb-0"><strong>Expires:</strong> {{ consent.expiry_date|date:'Y-m-d'|default:'—' }}</p>
+          </div>
+          <div class="card-footer bg-white d-flex gap-2 justify-content-end">
+            <a href="{% url 'consents:consent_details' consent.id %}" class="btn btn-primary btn-sm">Open review</a>
+          </div>
+        </div>
+      </div>
+    {% empty %}
+      <div class="col-12">
+        <div class="alert alert-info mb-0">There are no pending consent requests for you right now.</div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

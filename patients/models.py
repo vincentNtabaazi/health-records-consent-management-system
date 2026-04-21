@@ -2,7 +2,6 @@ from django.db import models
 from users.models import User, Role, CustomPermission, RolePermission
 
 
-# Create your models here.
 class Patient(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
 
@@ -11,7 +10,6 @@ class Patient(models.Model):
 
 
 class MedicalRecord(models.Model):
-
     DATA_CATEGORY_CHOICES = [
         ('diagnosis', 'Diagnosis'),
         ('treatment', 'Treatment'),
@@ -39,8 +37,27 @@ class ConsentPolicy(models.Model):
     role = models.ForeignKey(Role, on_delete=models.CASCADE)
     permission = models.ForeignKey(CustomPermission, on_delete=models.CASCADE)
     data_category = models.CharField(max_length=100)
-    expiry_date = models.DateField()
+    purpose = models.CharField(max_length=255, blank=True)
+    expiry_date = models.DateField(null=True, blank=True)
     active = models.BooleanField(default=True)
+    odrl_rule_uid = models.CharField(max_length=255, blank=True)
+    source_consent = models.ForeignKey(
+        'consents.Consent',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='granted_policies',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['patient', 'role', 'permission', 'data_category', 'source_consent'],
+                name='uniq_patient_role_permission_scope',
+            )
+        ]
 
 
 class PatientPermission(models.Model):

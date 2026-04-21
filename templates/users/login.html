@@ -1,65 +1,89 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Login</title>
-
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <meta charset="UTF-8">
+  <title>Login — ConsentHub</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 </head>
-
 <body class="bg-light">
 {% include "partials/toasts.html" %}
 
 <div class="container">
+  <div class="row justify-content-center align-items-center vh-100">
+    <div class="col-md-4">
 
-    <div class="row justify-content-center align-items-center vh-100">
+      <div class="text-center mb-4">
+        <span class="rounded-3 bg-primary d-inline-flex align-items-center justify-content-center mb-2"
+              style="width:48px;height:48px;">
+          <span class="fw-bold text-white fs-5">CM</span>
+        </span>
+        <h4 class="fw-semibold mb-0">ConsentHub</h4>
+        <small class="text-muted">Health Records Consent Management</small>
+      </div>
 
-        <div class="col-md-4">
+      <div class="card shadow-sm border-0">
+        <div class="card-body p-4">
+          <h5 class="card-title mb-4">Sign in to your account</h5>
 
-            <div class="card shadow">
+          <form method="POST" novalidate>
+            {% csrf_token %}
 
-                <div class="card-body p-4">
-
-                    <h3 class="text-center mb-4">Login</h3>
-
-                    <form method="POST">
-                        {% csrf_token %}
-
-                        <div class="mb-3">
-                            <label class="form-label">Email or Username</label>
-                            <input type="text" name="username" class="form-control"
-                                   placeholder="Enter email or username" required>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Password</label>
-                            <input type="password" name="password" class="form-control" placeholder="Enter password"
-                                   required>
-                        </div>
-
-                        <div class="d-grid">
-                            <button type="submit" class="btn btn-primary">Login</button>
-                        </div>
-
-                    </form>
-
-                    <div class="text-center mt-3">
-                        <p class="mb-0">Don't have an account?</p>
-                        <a href="{% url 'users:signup_view' %}">Register</a>
-                    </div>
-
-                </div>
-
+            <div class="mb-3">
+              <label class="form-label fw-medium">Email or Username</label>
+              <div class="input-group">
+                <span class="input-group-text bg-white"><i class="bi bi-person text-muted"></i></span>
+                <input type="text" name="username" class="form-control"
+                       placeholder="Enter email or username"
+                       value="{{ form.username.value|default:'' }}" required>
+              </div>
             </div>
 
+            <div class="mb-4">
+              <label class="form-label fw-medium">Password</label>
+              <div class="input-group">
+                <span class="input-group-text bg-white"><i class="bi bi-lock text-muted"></i></span>
+                <input type="password" name="password" id="passwordInput"
+                       class="form-control" placeholder="Enter password" required>
+                <button class="btn btn-outline-secondary" type="button"
+                        onclick="togglePwd('passwordInput', this)">
+                  <i class="bi bi-eye"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="d-grid mb-3">
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-box-arrow-in-right me-1"></i> Sign in
+              </button>
+            </div>
+          </form>
+
+          <div class="text-center mt-2">
+            <small class="text-muted">Don't have an account?
+              <a href="{% url 'users:signup_view' %}" class="text-decoration-none">Register</a>
+            </small>
+          </div>
         </div>
+      </div>
 
     </div>
-
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+function togglePwd(inputId, btn) {
+  const input = document.getElementById(inputId);
+  const icon  = btn.querySelector('i');
+  if (input.type === 'password') {
+    input.type = 'text';
+    icon.classList.replace('bi-eye', 'bi-eye-slash');
+  } else {
+    input.type = 'password';
+    icon.classList.replace('bi-eye-slash', 'bi-eye');
+  }
+}
+</script>
 </body>
 </html>
-
