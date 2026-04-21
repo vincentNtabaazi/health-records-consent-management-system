@@ -8,7 +8,6 @@ from patients.models import PatientPermission
 from services.policy_engine import check_access
 
 
-
 def get_patient_roles_permissions(patient):
     results = {}
     patient_perms = (
