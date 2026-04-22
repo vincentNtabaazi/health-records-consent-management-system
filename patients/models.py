@@ -4,6 +4,8 @@ from users.models import User, Role, CustomPermission, RolePermission
 
 class Patient(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
+    nhs_number    = models.CharField(max_length=20, unique=True, blank=True, null=True)
+    date_of_birth = models.DateField(null=True, blank=True)
 
     def __str__(self):
         return self.user.first_name + " " + self.user.last_name
@@ -28,6 +30,16 @@ class MedicalRecord(models.Model):
         choices=DATA_CATEGORY_CHOICES,
         default='diagnosis',
         help_text="Select the category of the medical record data."
+    )
+    sensitivity_level = models.CharField(
+        max_length=20,
+        choices=[('low','Low'),('medium','Medium'),('high','High'),('critical','Critical')],
+        default='medium'
+    )
+    record_status = models.CharField(
+        max_length=20,
+        choices=[('active','Active'),('archived','Archived')],
+        default='active'
     )
     created_at = models.DateTimeField(auto_now_add=True)
 

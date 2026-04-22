@@ -51,6 +51,27 @@
           </a>
         </li>
 
+
+
+
+
+<li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'access_request' %}active{% endif %}"
+             href="{% url 'pages:access_request' %}">
+            <i class="bi bi-shield-check me-1"></i> Access Request
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'compliance_dashboard' %}active{% endif %}"
+             href="{% url 'pages:compliance_dashboard' %}">
+            <i class="bi bi-clipboard-data me-1"></i> Compliance
+          </a>
+        </li>
+
+
+
+        
+
         {% if request.user.is_staff or request.user.is_superuser %}
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle

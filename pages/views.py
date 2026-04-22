@@ -95,3 +95,75 @@ def medical_records(request):
         'category_counts': category_counts_dict,
     }
     return render(request, 'pages/medical_records.html', context)
+
+
+
+
+
+from django.contrib import messages
+from consents.models import AccessRequest, DecisionLog
+from services.policy_engine import evaluate_access
+from services.compliance_checker import check_violations
+
+
+@login_required(login_url='users:login_view')
+def access_request_view(request):
+    patients = Patient.objects.select_related('user').all()
+
+    if request.method == 'POST':
+        patient_id    = request.POST.get('patient_id')
+        resource_type = request.POST.get('resource_type')
+        purpose       = request.POST.get('purpose')
+        action        = request.POST.get('action', 'read')
+
+        try:
+            patient = Patient.objects.get(id=patient_id)
+            log = evaluate_access(
+                requester=request.user,
+                patient=patient,
+                resource_type=resource_type,
+                purpose=purpose,
+                action=action,
+            )
+            context = {
+                'patients':      patients,
+                'result':        log,
+                'decision':      log.decision,
+                'reason':        log.reason,
+                'submitted':     True,
+            }
+            return render(request, 'pages/access_request.html', context)
+
+        except Patient.DoesNotExist:
+            messages.error(request, 'Patient not found.')
+
+    return render(request, 'pages/access_request.html', {'patients': patients})
+
+
+@login_required(login_url='users:login_view')
+def compliance_dashboard_view(request):
+    patients = Patient.objects.select_related('user').all()
+    selected_patient = None
+    report = None
+
+    patient_id = request.GET.get('patient_id')
+    if patient_id:
+        try:
+            selected_patient = Patient.objects.get(id=patient_id)
+            report = check_violations(selected_patient)
+        except Patient.DoesNotExist:
+            messages.error(request, 'Patient not found.')
+
+    recent_logs = DecisionLog.objects.select_related(
+        'access_request',
+        'access_request__requester',
+        'access_request__patient',
+    ).order_by('-checked_at')[:20]
+
+    context = {
+        'patients':         patients,
+        'selected_patient': selected_patient,
+        'report':           report,
+        'recent_logs':      recent_logs,
+    }
+    return render(request, 'pages/compliance_dashboard.html', context)

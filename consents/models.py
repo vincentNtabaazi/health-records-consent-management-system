@@ -184,3 +184,61 @@ class Consent(models.Model):
         self.odrl_policy = current_policy
         self.save(update_fields=['status', 'consent_type', 'decision_date', 'odrl_policy'])
         return True
+
+
+
+
+class AccessRequest(models.Model):
+    ACTION_CHOICES = [
+        ('read','Read'),('write','Write'),('share','Share'),('delete','Delete'),
+    ]
+    PURPOSE_CHOICES = [
+        ('treatment','Treatment'),('research','Research'),
+        ('audit','Audit'),('emergency','Emergency'),('insurance','Insurance'),
+    ]
+    STATUS_CHOICES = [
+        ('pending','Pending'),('evaluated','Evaluated'),
+    ]
+
+    requester     = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='access_requests'
+    )
+    patient       = models.ForeignKey(
+        'patients.Patient', on_delete=models.CASCADE, related_name='access_requests'
+    )
+    resource_type = models.CharField(max_length=100)
+    purpose       = models.CharField(max_length=50, choices=PURPOSE_CHOICES)
+    action        = models.CharField(max_length=20, choices=ACTION_CHOICES, default='read')
+    requested_at  = models.DateTimeField(auto_now_add=True)
+    status        = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+
+    class Meta:
+        ordering = ['-requested_at']
+
+    def __str__(self):
+        return f"Request#{self.id} by {self.requester.username}: {self.action} {self.resource_type}"
+
+
+class DecisionLog(models.Model):
+    DECISION_CHOICES = [
+        ('allow','Allow'),('deny','Deny'),('limited','Limited'),
+    ]
+    COMPLIANCE_CHOICES = [
+        ('compliant','Compliant'),('non_compliant','Non-Compliant'),('warning','Warning'),
+    ]
+
+    access_request    = models.OneToOneField(
+        AccessRequest, on_delete=models.CASCADE, related_name='decision'
+    )
+    decision          = models.CharField(max_length=20, choices=DECISION_CHOICES)
+    reason            = models.TextField()
+    matched_consent   = models.ForeignKey(
+        Consent, null=True, blank=True, on_delete=models.SET_NULL, related_name='decisions'
+    )
+    checked_at        = models.DateTimeField(auto_now_add=True)
+    compliance_status = models.CharField(
+        max_length=20, choices=COMPLIANCE_CHOICES, default='compliant'
+    )
+
+    def __str__(self):
+        return f"Decision#{self.id} → {self.decision} ({self.compliance_status})"
