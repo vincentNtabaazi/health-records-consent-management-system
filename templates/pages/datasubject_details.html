@@ -4,70 +4,6 @@
 
 {% block content %}
 <div class="row">
-    {# Modal for Editing Consents #}
-    <div class="modal fade" id="editConsentModal" tabindex="-1"
-         aria-labelledby="editConsentModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-
-                <form method="POST" action="{% url 'patients:update_patient_permissions' patient.id %}">
-                    {% csrf_token %}
-
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="editConsentModalLabel">Edit Consents</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-
-                    <div class="modal-body">
-                        {% if roles %}
-                        {% for role in roles %}
-                        <div class="border-bottom py-3">
-                            <h6 class="mb-3">{{ role.get_name_display }}</h6>
-
-                            <div class="row">
-                                {% for perm in all_permissions|dict_get:role.id %}
-                                <div class="col-md-6 col-lg-4 mb-2">
-                                    <div class="form-check">
-                                        <input class="form-check-input"
-                                               type="checkbox"
-                                               id="perm-{{ role.id }}-{{ perm.id }}"
-                                               name="permissions_{{ role.id }}[]"
-                                               value="{{ perm.id }}"
-                                               {% if perm.is_assigned %}checked{% endif %}>
-
-                                        <label class="form-check-label"
-                                               for="perm-{{ role.id }}-{{ perm.id }}">
-                                            {{ perm.name|replace_underscore }}
-                                        </label>
-                                    </div>
-                                </div>
-                                {% empty %}
-                                <div class="col-12">
-                                    <span class="text-muted">No permissions assigned</span>
-                                </div>
-                                {% endfor %}
-                            </div>
-                        </div>
-                        {% endfor %}
-                        {% else %}
-                        <p>No roles found.</p>
-                        {% endif %}
-                    </div>
-
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary"
-                                data-bs-dismiss="modal">Close</button>
-
-                        <button type="submit" class="btn btn-primary">
-                            Save changes
-                        </button>
-                    </div>
-
-                </form>
-
-            </div>
-        </div>
-    </div>
 
 
     {# Left Column: Medical Records Timeline #}
@@ -175,31 +111,151 @@
                 </div>
 
                 <!-- CONSENTS TAB -->
-                <div class="tab-pane fade h-100" id="consents">
-                    <div class="card-body h-100" style="overflow-y: auto;">
+<div class="tab-pane fade h-100" id="consents">
+  <div class="card-body h-100" style="overflow-y: auto;">
 
-                        {% if roles %}
-                        {% for role in roles %}
-                        <div class="border-bottom py-3">
-                            <h6 class="mb-1">{{ role.get_name_display }}</h6>
-                            <p class="text-muted large mb-1">
-                                {% for perm in permissions|dict_get:role.id %}
-                                <span class="badge bg-secondary">{{ perm.name|replace_underscore  }}</span>
-                                {% empty %}
-                                <span class="text-muted">No permissions assigned</span>
-                                {% endfor %}
-                            </p>
-                        </div>
-                        {% endfor %}
-                        {% endif %}
-                        <button class="w-25 mt-4 btn btn-primary"
-                                type="button"
-                                data-bs-toggle="modal"
-                                data-bs-target="#editConsentModal">
-                            Edit Consents
-                        </button>
-                    </div>
-                </div>
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <div>
+        <h5 class="fw-semibold mb-1" style="font-size: 20px;">Consent Records</h5>
+        <span class="text-muted" style="font-size: 14px;">{{ consents.count }} consent{{ consents.count|pluralize }} on file</span>
+      </div>
+      <button class="btn btn-primary" style="font-size: 15px; padding: 9px 22px;" data-bs-toggle="modal" data-bs-target="#addConsentModal">
+        + Add Consent
+      </button>
+    </div>
+
+    <!-- Consent Cards -->
+    {% for consent in consents %}
+    <div class="card border rounded-4 mb-3 shadow-sm">
+      <div class="card-body p-4">
+
+        <!-- Top row: ID + Status + Policy badge -->
+        <div class="d-flex justify-content-between align-items-start mb-3">
+          <div class="d-flex align-items-center gap-3">
+            <span class="font-monospace text-muted" style="font-size: 13px;">{{ consent.consent_id }}</span>
+
+            {% if consent.status == "active" %}
+              <span class="badge rounded-pill bg-success-subtle text-success border border-success-subtle" style="font-size: 13px; padding: 5px 13px;">Active</span>
+            {% elif consent.status == "withdrawn" %}
+              <span class="badge rounded-pill bg-secondary-subtle text-secondary border border-secondary-subtle" style="font-size: 13px; padding: 5px 13px;">Withdrawn</span>
+            {% elif consent.status == "expired" %}
+              <span class="badge rounded-pill bg-danger-subtle text-danger border border-danger-subtle" style="font-size: 13px; padding: 5px 13px;">Expired</span>
+            {% elif consent.status == "pending" %}
+              <span class="badge rounded-pill bg-warning-subtle text-warning border border-warning-subtle" style="font-size: 13px; padding: 5px 13px;">Pending</span>
+            {% elif consent.status == "denied" %}
+              <span class="badge rounded-pill bg-danger-subtle text-danger border border-danger-subtle" style="font-size: 13px; padding: 5px 13px;">Denied</span>
+            {% endif %}
+
+            {% if consent.policy_evaluation_result == "compliant" %}
+              <span class="badge rounded-pill bg-success-subtle text-success border border-success-subtle" style="font-size: 12px; padding: 4px 11px;">
+                ✓ Compliant
+              </span>
+            {% elif consent.policy_evaluation_result == "non-compliant" %}
+              <span class="badge rounded-pill bg-danger-subtle text-danger border border-danger-subtle" style="font-size: 12px; padding: 4px 11px;">
+                ✗ Non-Compliant
+              </span>
+            {% else %}
+              <span class="badge rounded-pill bg-light text-muted border" style="font-size: 12px; padding: 4px 11px;">
+                Policy N/A
+              </span>
+            {% endif %}
+          </div>
+
+          <!-- Action buttons -->
+          <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary btn-sm"
+                    style="font-size: 14px; padding: 6px 16px;"
+                    data-bs-toggle="modal"
+                    data-bs-target="#editConsentModal"
+                    data-consent-id="{{ consent.id }}"
+                    data-purpose="{{ consent.purpose }}"
+                    data-status="{{ consent.status }}"
+                    data-notes="{{ consent.notes }}"
+                    data-expiry="{{ consent.expiry_date|date:'Y-m-d' }}">
+              Edit
+            </button>
+            {% if consent.status == "active" %}
+            <button class="btn btn-outline-danger btn-sm"
+                    style="font-size: 14px; padding: 6px 16px;"
+                    data-bs-toggle="modal"
+                    data-bs-target="#withdrawConsentModal"
+                    data-consent-id="{{ consent.id }}"
+                    data-consent-ref="{{ consent.consent_id }}">
+              Withdraw
+            </button>
+            {% endif %}
+          </div>
+        </div>
+
+        <hr class="my-3">
+
+        <!-- Main details grid -->
+        <div class="row g-3 mb-3">
+          <div class="col-md-4">
+            <div class="text-muted mb-1" style="font-size: 12px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600;">Data Category</div>
+            <span class="badge rounded-pill bg-primary-subtle text-primary border border-primary-subtle" style="font-size: 14px; padding: 6px 14px;">
+              {{ consent.data_category }}
+            </span>
+          </div>
+          <div class="col-md-4">
+            <div class="text-muted mb-1" style="font-size: 12px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600;">Consent Type</div>
+            <span class="fw-semibold text-dark" style="font-size: 15px;">{{ consent.get_consent_type_display }}</span>
+          </div>
+          <div class="col-md-4">
+            <div class="text-muted mb-1" style="font-size: 12px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600;">Role</div>
+            <span class="fw-semibold text-dark" style="font-size: 15px;">{{ consent.role }}</span>
+          </div>
+        </div>
+
+        <!-- Purpose -->
+        <div class="mb-3">
+          <div class="text-muted mb-1" style="font-size: 12px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600;">Purpose</div>
+          <p class="mb-0 text-dark" style="font-size: 15px; line-height: 1.6;">{{ consent.purpose }}</p>
+        </div>
+
+        {% if consent.notes %}
+        <!-- Notes -->
+        <div class="mb-3">
+          <div class="text-muted mb-1" style="font-size: 12px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600;">Notes</div>
+          <p class="mb-0 text-muted fst-italic" style="font-size: 14px; line-height: 1.6;">{{ consent.notes }}</p>
+        </div>
+        {% endif %}
+
+        <hr class="my-3">
+
+        <!-- Dates footer -->
+        <div class="row g-2">
+          <div class="col-md-4">
+            <div class="text-muted mb-1" style="font-size: 12px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600;">Created</div>
+            <span class="text-dark" style="font-size: 14px;">{{ consent.created_date|date:"d M Y, H:i" }}</span>
+          </div>
+          <div class="col-md-4">
+            <div class="text-muted mb-1" style="font-size: 12px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600;">Decision Date</div>
+            <span class="text-dark" style="font-size: 14px;">
+              {% if consent.decision_date %}{{ consent.decision_date|date:"d M Y, H:i" }}{% else %}<span class="text-muted">—</span>{% endif %}
+            </span>
+          </div>
+          <div class="col-md-4">
+            <div class="text-muted mb-1" style="font-size: 12px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600;">Expiry Date</div>
+            <span class="{% if consent.status == 'expired' %}text-danger fw-semibold{% else %}text-dark{% endif %}" style="font-size: 14px;">
+              {% if consent.expiry_date %}{{ consent.expiry_date|date:"d M Y, H:i" }}{% else %}<span class="text-muted">—</span>{% endif %}
+            </span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    {% empty %}
+    <div class="text-center py-5 text-muted">
+      <div style="font-size: 48px;" class="mb-3">📋</div>
+      <p style="font-size: 17px;" class="mb-1 fw-medium">No consent records found</p>
+      <p style="font-size: 14px;">This patient has not provided any consent records yet.</p>
+    </div>
+    {% endfor %}
+
+  </div>
+</div>
             </div>
         </div>
     </div>
@@ -215,8 +271,7 @@
                          class="rounded-circle me-3 border border-primary"
                          style="width: 60px; height: 60px; object-fit: cover;">
                     <div>
-                        <h5 class="mb-0 fw-semibold text-dark">{{ patient.user.first_name }} {{ patient.user.last_name
-                            }}</h5>
+                        <h5 class="mb-0 fw-semibold text-dark">{{ patient.user.first_name }} {{ patient.user.last_name }}</h5>
                         <p class="text-muted small mb-0">{{ patient.user.email }}</p>
                     </div>
                 </div>
@@ -253,10 +308,73 @@
         <div class="card shadow-sm">
             <div class="card-body p-4">
                 <h6 class="text-muted text-uppercase small mb-3">Quick Actions</h6>
-                <button class="btn btn-primary w-100 py-2"><i class="bi bi-plus-circle me-2"></i> Add New Record
+                <button class="btn btn-primary w-100 py-2 mb-3"><i class="bi bi-plus-circle me-2"></i> Add New Record
+                </button>
+                <button class="btn btn-success w-100 py-2"><i class="bi bi-check-circle-fill me-2"></i> Grant Consent
                 </button>
             </div>
         </div>
     </div>
-</div>
+
+
+    <!-- ===================== WITHDRAW CONSENT MODAL ===================== -->
+    <div class="modal fade" id="withdrawConsentModal" tabindex="-1" aria-labelledby="withdrawConsentModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+          <div class="modal-header border-bottom px-4 py-3">
+            <h5 class="modal-title fw-semibold text-danger" id="withdrawConsentModalLabel" style="font-size: 18px;">Withdraw Consent</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body px-4 py-4">
+            <p style="font-size: 16px;" class="text-dark mb-1">Are you sure you want to withdraw consent</p>
+            <p class="font-monospace text-muted mb-3" style="font-size: 14px;" id="withdrawConsentRef"></p>
+            <div class="alert alert-warning rounded-3 border-0" style="font-size: 14px;">
+              This action will mark the consent as <strong>Withdrawn</strong> and cannot be undone without creating a new consent record.
+            </div>
+          </div>
+          <form method="POST" action="{% url 'consent:consent_withdraw' %}">
+            {% csrf_token %}
+            <input type="hidden" name="consent_id" id="withdrawConsentId">
+            <div class="modal-footer border-top px-4 py-3 gap-2">
+              <button type="button" class="btn btn-outline-secondary" style="font-size: 15px; padding: 9px 22px;" data-bs-dismiss="modal">Cancel</button>
+              <button type="submit" class="btn btn-danger" style="font-size: 15px; padding: 9px 22px;">Yes, Withdraw</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    </div>
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+    // Edit modal
+    const editModal = document.getElementById('editConsentModal');
+
+    if (editModal) {
+        editModal.addEventListener('show.bs.modal', function (e) {
+            const btn = e.relatedTarget;
+            document.getElementById('editConsentId').value  = btn.dataset.consentId;
+            document.getElementById('editPurpose').value    = btn.dataset.purpose;
+            document.getElementById('editNotes').value      = btn.dataset.notes;
+            document.getElementById('editExpiry').value     = btn.dataset.expiry;
+            document.getElementById('editStatus').value     = btn.dataset.status;
+        });
+    }
+
+    // Withdraw modal
+    const withdrawModal = document.getElementById('withdrawConsentModal');
+
+    if (withdrawModal) {
+        withdrawModal.addEventListener('show.bs.modal', function (e) {
+            const btn = e.relatedTarget;
+            document.getElementById('withdrawConsentId').value = btn.dataset.consentId;
+            document.getElementById('withdrawConsentRef').textContent = btn.dataset.consentRef;
+        });
+    }
+
+});
+</script>
+{% endblock %}
 {% endblock %}

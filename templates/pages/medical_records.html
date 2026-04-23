@@ -1,114 +1,120 @@
 {% load static %}
 {% include "pages/home.html" %}
-{% load my_filters %}
 
 {% block content %}
+<div class="container-fluid px-4 py-5">
 
-<div class="container mt-5">
-<div class="row mb-4">
-    <div class="col-md-8">
-        <div class="input-group shadow-sm">
-            <input type="text" class="form-control" placeholder="Search records by title, category, or patient..." aria-label="Search medical records">
-            <button class="btn btn-primary" type="button"><i class="bi bi-search"></i> Search</button>
-        </div>
-    </div>
-    <div class="col-md-4 text-end">
-        <a href="" class="btn btn-success shadow-sm"><i class="bi bi-plus-circle me-2"></i> Add New Record</a>
-    </div>
-</div>
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="fw-semibold mb-0">Medical Records</h4>
+    <span class="text-muted fs-6">{{ paginator.count }} record{{ paginator.count|pluralize }}</span>
+  </div>
 
-<div class="card shadow-sm mb-4">
-    <div class="card-header bg-white py-3 border-bottom">
-        <h5 class="mb-0">All Records</h5>
-    </div>
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover mb-0">
-                <thead class="bg-light"> {# Light background for table header #}
-                    <tr>
-                        <th scope="col" class="py-3 px-4">Patient</th>
-                        <th scope="col" class="py-3 px-4">Title</th>
-                        <th scope="col" class="py-3 px-4">Category</th>
-                        <th scope="col" class="py-3 px-4">Created At</th>
-                        <th scope="col" class="py-3 px-4">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for record in medical_records %}
-                    <tr class="align-middle" onclick="">
-                        <td class="py-3 px-4">
-                            <a href="{% url 'patients:patient_medical_timeline' record.patient.id %}" class="text-decoration-none text-primary fw-semibold">
-                                {{ record.patient.user.first_name }} {{ record.patient.user.last_name }}
+  <table class="w-100" style="border-collapse: separate; border-spacing: 0 10px;">
+    <thead>
+      <tr>
+        <th style="width: 68px; padding: 0 14px 14px; border-bottom: 1px solid #dee2e6;"></th>
+        <th class="text-uppercase text-muted fw-semibold" style="font-size: 13px; letter-spacing: .06em; padding: 0 14px 14px; border-bottom: 1px solid #dee2e6;">Record ID</th>
+        <th class="text-uppercase text-muted fw-semibold" style="font-size: 13px; letter-spacing: .06em; padding: 0 14px 14px; border-bottom: 1px solid #dee2e6;">Patient</th>
+        <th class="text-uppercase text-muted fw-semibold" style="font-size: 13px; letter-spacing: .06em; padding: 0 14px 14px; border-bottom: 1px solid #dee2e6;">Purpose</th>
+        <th class="text-uppercase text-muted fw-semibold" style="font-size: 13px; letter-spacing: .06em; padding: 0 14px 14px; border-bottom: 1px solid #dee2e6;">Category</th>
+        <th class="text-uppercase text-muted fw-semibold text-end" style="font-size: 13px; letter-spacing: .06em; padding: 0 14px 14px; border-bottom: 1px solid #dee2e6;">Consent Expiry</th>
+<!--        <th class="text-uppercase text-muted fw-semibold text-center" style="font-size: 13px; letter-spacing: .06em; padding: 0 14px 14px; border-bottom: 1px solid #dee2e6;">Status</th>-->
+        <th style="border-bottom: 1px solid #dee2e6;"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for consent in consents %}
+      <tr>
+        <td class="bg-white border-top border-bottom border-start rounded-start-3" style="padding: 20px 14px 20px 20px;">
+          <div class="rounded-circle bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center fw-semibold"
+               style="width: 48px; height: 48px; font-size: 16px;">
+            {{ consent.patient.user.first_name|first }}{{ consent.patient.user.last_name|first }}
+          </div>
+        </td>
+
+        <td class="bg-white border-top border-bottom" style="padding: 20px 14px;">
+          <span class="font-monospace text-muted" style="font-size: 14px;">REC-{{ consent.id }}</span>
+        </td>
+
+        <td class="bg-white border-top border-bottom" style="padding: 20px 14px;">
+          <a href="{% url 'patients:patient_medical_timeline' consent.patient.id %}" class="text-decoration-none text-primary fw-semibold">
+                                {{ consent.patient.user.first_name }} {{ consent.patient.user.last_name }}
                             </a>
-                        </td>
-                        <td class="py-3 px-4">{{ record.title }}</td>
-                        <td class="py-3 px-4">
-                            {# Using Bootstrap's built-in badge colors for simplicity #}
-                            {% if record.data_category == 'diagnosis' %}
-                                <span class="badge bg-primary text-uppercase">{{ record.get_data_category_display }}</span>
-                            {% elif record.data_category == 'treatment' %}
-                                <span class="badge bg-success text-uppercase">{{ record.get_data_category_display }}</span>
-                            {% elif record.data_category == 'mental_health' %}
-                                <span class="badge bg-info text-dark text-uppercase">{{ record.get_data_category_display }}</span> {# bg-info is light, so text-dark #}
-                            {% elif record.data_category == 'billing' %}
-                                <span class="badge bg-warning text-dark text-uppercase">{{ record.get_data_category_display }}</span> {# bg-warning is light, so text-dark #}
-                            {% elif record.data_category == 'lab_results' %}
-                                <span class="badge bg-danger text-uppercase">{{ record.get_data_category_display }}</span>
-                            {% elif record.data_category == 'medication' %}
-                                <span class="badge bg-secondary text-uppercase">{{ record.get_data_category_display }}</span>
-                            {% elif record.data_category == 'allergies' %}
-                                <span class="badge bg-dark text-uppercase">{{ record.get_data_category_display }}</span>
-                            {% elif record.data_category == 'immunization' %}
-                                <span class="badge bg-success text-uppercase">{{ record.get_data_category_display }}</span> {# Reusing success or pick another like primary #}
-                            {% else %}
-                                <span class="badge bg-light text-dark text-uppercase">{{ record.get_data_category_display }}</span>
-                            {% endif %}
-                        </td>
-                        <td class="py-3 px-4 text-muted">{{ record.created_at|date:"M d, Y H:i" }}</td>
-                        <td class="py-3 px-4">
-                            <a href="" class="btn btn-sm btn-outline-info me-1" title="View"><i class="bi bi-eye"></i></a>
-                            <a href="" class="btn btn-sm btn-outline-primary me-1" title="Edit"><i class="bi bi-pencil"></i></a>
-                            <a href="" class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i></a>
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="6" class="text-center p-4 text-muted">No medical records found.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-    <div class="card-footer bg-white border-top text-muted">
-        {% if medical_records.has_other_pages %}
-        <nav aria-label="Page navigation example">
-            <ul class="pagination justify-content-center mb-0">
-                {% if medical_records.has_previous %}
-                    <li class="page-item"><a class="page-link" href="?page={{ medical_records.previous_page_number }}">Previous</a></li>
-                {% else %}
-                    <li class="page-item disabled"><a class="page-link" href="#">Previous</a></li>
-                {% endif %}
+          <div class="text-muted" style="font-size: 14px;">{{ consent.patient.user.email }}</div>
+        </td>
 
-                {% for i in medical_records.paginator.page_range %}
-                    {% if medical_records.number == i %}
-                        <li class="page-item active"><span class="page-link">{{ i }}</span></li>
-                    {% else %}
-                        <li class="page-item"><a class="page-link" href="?page={{ i }}">{{ i }}</a></li>
-                    {% endif %}
-                {% endfor %}
+        <td class="bg-white border-top border-bottom" style="padding: 20px 14px; font-size: 16px; color: #3a3d52;">
+          {{ consent.purpose|truncatechars:50 }}
+        </td>
 
-                {% if medical_records.has_next %}
-                    <li class="page-item"><a class="page-link" href="?page={{ medical_records.next_page_number }}">Next</a></li>
-                {% else %}
-                    <li class="page-item disabled"><a class="page-link" href="#">Next</a></li>
-                {% endif %}
-            </ul>
-        </nav>
-        {% endif %}
-    </div>
+        <td class="bg-white border-top border-bottom" style="padding: 20px 14px;">
+          <span class="badge rounded-pill bg-primary-subtle text-primary border border-primary-subtle" style="font-size: 14px; padding: 6px 14px;">
+            {{ consent.data_category }}
+          </span>
+        </td>
+
+        <td class="bg-white border-top border-bottom text-end" style="padding: 20px 14px;">
+          <div class="text-muted" style="font-size: 12px;">Expiry</div>
+          <div class="fw-semibold text-dark" style="font-size: 16px; white-space: nowrap;">{{ consent.consent_expiry|date:"d M Y" }}</div>
+        </td>
+
+<!--        <td class="bg-white border-top border-bottom text-center" style="padding: 20px 14px;">-->
+<!--          {% if consent.status == "approved" %}-->
+<!--            <span class="badge rounded-pill bg-success-subtle text-success border border-success-subtle" style="font-size: 14px; padding: 6px 14px;">Approved</span>-->
+<!--          {% elif consent.status == "rejected" %}-->
+<!--            <span class="badge rounded-pill bg-danger-subtle text-danger border border-danger-subtle" style="font-size: 14px; padding: 6px 14px;">Rejected</span>-->
+<!--          {% else %}-->
+<!--            <span class="badge rounded-pill bg-warning-subtle text-warning border border-warning-subtle" style="font-size: 14px; padding: 6px 14px;">Pending</span>-->
+<!--          {% endif %}-->
+<!--        </td>-->
+
+        <td class="bg-white border-top border-bottom border-end rounded-end-3" style="padding: 20px 20px 20px 14px;">
+          <a href="{% url 'consent:consent_details' consent.id %}" class="btn btn-outline-secondary" style="font-size: 15px; padding: 8px 20px;">
+            View →
+          </a>
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="8" class="text-center text-muted py-5 bg-white rounded-3 border" style="font-size: 16px;">
+          No consent records found.
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if is_paginated %}
+  <nav class="mt-4 d-flex justify-content-center">
+    <ul class="pagination" style="font-size: 15px;">
+      {% if page_obj.has_previous %}
+        <li class="page-item">
+          <a class="page-link px-4 py-2" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+        </li>
+      {% else %}
+        <li class="page-item disabled">
+          <span class="page-link px-4 py-2">Previous</span>
+        </li>
+      {% endif %}
+
+      {% for i in paginator.page_range %}
+        <li class="page-item {% if page_obj.number == i %}active{% endif %}">
+          <a class="page-link px-4 py-2" href="?page={{ i }}">{{ i }}</a>
+        </li>
+      {% endfor %}
+
+      {% if page_obj.has_next %}
+        <li class="page-item">
+          <a class="page-link px-4 py-2" href="?page={{ page_obj.next_page_number }}">Next</a>
+        </li>
+      {% else %}
+        <li class="page-item disabled">
+          <span class="page-link px-4 py-2">Next</span>
+        </li>
+      {% endif %}
+    </ul>
+  </nav>
+  {% endif %}
+
 </div>
-
-</div>
-
 {% endblock %}

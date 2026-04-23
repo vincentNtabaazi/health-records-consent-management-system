@@ -5,4 +5,5 @@ app_name = 'consent'
 
 urlpatterns = [
     path('<int:pk>/', consent_details, name='consent_details'),
+    path('consent_withdraw/', consent_withdraw, name='consent_withdraw'),
 ]

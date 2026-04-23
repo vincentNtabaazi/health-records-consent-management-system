@@ -1,6 +1,8 @@
-from datetime import timezone
+from django.utils import timezone
 from django.db import models
 from users.models import User
+from patients.models import MedicalRecord
+from users.models import User, Role
 
 # Create your models here.
 class Consent(models.Model):
@@ -31,11 +33,12 @@ class Consent(models.Model):
     patient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='consents_as_patient',
                                 help_text="The patient or data subject providing consent.")
 
-    data_processor = models.ForeignKey(User, on_delete=models.CASCADE, related_name='consents_processed',
-                                       help_text="The data processor managing this consent.")
+    role = models.ForeignKey(Role, on_delete=models.CASCADE)
 
-    data_type = models.CharField(max_length=255,
-                                 help_text="The type of data being consented for (e.g., 'Medical Records', 'Genomic Data').")
+    data_category = models.CharField(
+        max_length=100,
+        choices=MedicalRecord.DATA_CATEGORY_CHOICES
+    )
 
     purpose = models.TextField(help_text="The specific purpose for which the data is being collected and processed.")
 
@@ -68,12 +71,15 @@ class Consent(models.Model):
         # unique_together = ('patient', 'data_processor', 'data_type', 'purpose')
 
     def __str__(self):
-        return f"Consent ID: {self.consent_id} - Patient: {self.patient.username} - Data Type: {self.data_type}"
+        return f"Consent ID: {self.consent_id} - Patient: {self.patient.username} - Data Category: {self.data_category}"
 
     def save(self, *args, **kwargs):
+        if not self.created_date:
+            self.created_date = timezone.now()
+
         if not self.consent_id:
             # Generate a simple consent ID. For production, consider a more robust UUID or hash.
-            self.consent_id = f"CONSENT-{self.patient.id}-{self.data_processor.id}-{self.created_date.strftime('%Y%m%d%H%M%S')}"
+            self.consent_id = f"CONSENT-{self.patient.id}-{self.role.id}-{self.created_date.strftime('%Y%m%d%H%M%S')}"
         super().save(*args, **kwargs)
 
     def withdraw_consent(self):

@@ -25,3 +25,9 @@ def authenticate(password, username):
             return None
     except User.DoesNotExist:
         return None
+
+def get_role(request):
+    if request.user:
+        return request.user.role.get_name_display()
+    else:
+        return None

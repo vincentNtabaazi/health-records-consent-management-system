@@ -23,9 +23,9 @@
           </a>
         </li>
         <li class="nav-item">
-          <a class="nav-link {% if request.resolver_match.url_name == 'consent_records' %}active{% endif %}"
-             href="{% url 'pages:consent_records' %}">
-            <i class="bi bi-check2-square me-1"></i> Consent Records
+          <a class="nav-link {% if request.resolver_match.url_name == 'medical_records' %}active{% endif %}"
+             href="{% url 'pages:medical_records' %}">
+            <i class="bi bi-check2-square me-1"></i> Medical Records
           </a>
         </li>
 
@@ -43,12 +43,13 @@
           </a>
         </li>
 
-        <li class="nav-item">
-          <a class="nav-link {% if request.resolver_match.url_name == 'medical_records' %}active{% endif %}"
-             href="{% url 'pages:medical_records' %}">
-            <i class="bi bi-file-earmark-medical me-1"></i> Medical Records
-          </a>
-        </li>
+
+<!--        <li class="nav-item">-->
+<!--          <a class="nav-link {% if request.resolver_match.url_name == 'medical_records' %}active{% endif %}"-->
+<!--             href="{% url 'pages:medical_records' %}">-->
+<!--            <i class="bi bi-file-earmark-medical me-1"></i> Medical Records-->
+<!--          </a>-->
+<!--        </li>-->
 
         {# Admin dropdown #}
         <li class="nav-item dropdown">
@@ -107,7 +108,7 @@
     <small class="fw-semibold mb-0">
       {{ request.user.get_full_name|default:"Vincent Ntabaazi" }}
     </small>
-    <small class="text-white">Compliance Manager</small>
+    <small class="text-white">{{ role }}</small>
   </span>
 
 </a>

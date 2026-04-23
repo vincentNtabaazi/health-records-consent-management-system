@@ -4,13 +4,16 @@ from consents.models import Consent
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from patients.models import MedicalRecord, Patient
 from django.db.models import Count
+from services.datasetGenerator import generate_dataset
 from services.generate_medical_records import populate_medical_records, generate_medical_permissions
 from users.models import User
+from users.utils import get_role
 
 
 @login_required(login_url='users:login_view')
 def home(request):
-    return render(request, 'pages/home.html')
+    role = get_role(request)
+    return render(request, 'pages/home.html', locals())
 
 def data_subjects(request):
     data_subjects_list = Patient.objects.filter().order_by('id')
@@ -32,8 +35,9 @@ def data_subjects(request):
     # which is consistent with the template usage.
     return render(request, 'pages/data_subjects.html', {'data_subjects_list': data_subjects_list})
 
-def consent_records(request):
-    consent_list = Consent.objects.all().order_by('-id')
+def medical_records(request):
+    role = get_role(request)
+    consent_list = generate_dataset(request.user.role).order_by('-id')
     paginator = Paginator(consent_list, 6)
 
     page = request.GET.get('page')
@@ -44,39 +48,19 @@ def consent_records(request):
     except EmptyPage:
         consents = paginator.page(paginator.num_pages)
 
-    context = {
+    return render(request, 'pages/medical_records.html', {
         'consents': consents,
-        'is_paginated': True,
-        'page_obj': consents,
         'paginator': paginator,
-    }
-    return render(request, 'pages/consent_records.html', context)
+        'page_obj': consents,
+        'is_paginated': paginator.num_pages > 1,
+        'role': role,
+    })
 
 def policies(request):
     return render(request, 'pages/policies.html')
 
+@login_required(login_url='users:login_view')
 def dashboard_view(request):
     # generate_medical_permissions()
-    return render(request, 'pages/dashboard.html')
-
-def medical_records(request):
-    # Fetch all medical records, ordered by creation date (most recent first)
-    all_records = MedicalRecord.objects.select_related('patient').order_by('-created_at')
-
-    # Apply pagination
-    paginator = Paginator(all_records, 10)  # Show 10 records per page
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-
-    # Optional: Get counts for each category
-    category_counts = MedicalRecord.objects.values('data_category').annotate(count=Count('data_category'))
-    category_counts_dict = {
-        dict(MedicalRecord.DATA_CATEGORY_CHOICES).get(item['data_category'], item['data_category']): item['count']
-        for item in category_counts
-    }
-
-    context = {
-        'medical_records': page_obj,
-        'category_counts': category_counts_dict,
-    }
-    return render(request, 'pages/medical_records.html', context)
+    role = get_role(request)
+    return render(request, 'pages/dashboard.html', locals())

@@ -1,5 +1,7 @@
 from django.contrib import messages
 from django.shortcuts import render, get_object_or_404
+
+from consents.models import Consent
 from patients.models import Patient, MedicalRecord
 from users.models import Role, RolePermission
 from patients.models import PatientPermission
@@ -73,6 +75,7 @@ def patient_medical_timeline(request, patient_id):
     roles = Role.objects.all().exclude(name__in=['Admin', 'subject'])
     permissions = get_roles_permissions(patient)
     all_permissions = get_roles_permissions(patient_permissions=permissions)
+    consents = Consent.objects.filter(patient=patient.user)
     """ 
     TODO: Then the next step is the consent records from here, the consents are now working fine. We shall consider that 
     that if a user consents then any records on the system under that category where he consented are visible to the 
