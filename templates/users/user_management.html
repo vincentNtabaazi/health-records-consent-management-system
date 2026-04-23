@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}User Management — ConsentHub{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h4 class="fw-semibold mb-0">User Management</h4>
+      <small class="text-muted">{{ users.count }} registered user{{ users.count|pluralize }}</small>
+    </div>
+    <a href="{% url 'users:roles_permissions_view' %}" class="btn btn-outline-primary btn-sm">
+      <i class="bi bi-shield-check me-1"></i> Roles &amp; Permissions
+    </a>
+  </div>
+
+  <!-- Filter bar -->
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-body py-2 px-3">
+      <div class="row g-2 align-items-center">
+        <div class="col-auto">
+          <input type="text" id="searchInput" class="form-control form-control-sm"
+                 placeholder="Search by name or email…" style="min-width:220px;">
+        </div>
+        <div class="col-auto">
+          <select id="roleFilter" class="form-select form-select-sm">
+            <option value="">All roles</option>
+            {% for role in roles %}
+              <option value="{{ role.name }}">{{ role.get_name_display }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-auto">
+          <select id="statusFilter" class="form-select form-select-sm">
+            <option value="">All statuses</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0" id="usersTable">
+        <thead class="table-light">
+          <tr>
+            <th>User</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Organisation</th>
+            <th>Joined</th>
+            <th>Status</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in users %}
+          <tr data-role="{{ u.role.name|default:'' }}"
+              data-status="{% if u.is_active %}active{% else %}inactive{% endif %}">
+            <td>
+              <div class="d-flex align-items-center gap-2">
+                <span class="rounded-circle bg-primary bg-opacity-10 d-inline-flex align-items-center justify-content-center flex-shrink-0"
+                      style="width:36px;height:36px;">
+                  <span class="small fw-semibold text-primary">
+                    {{ u.first_name|first }}{{ u.last_name|first }}
+                  </span>
+                </span>
+                <div>
+                  <div class="fw-medium small">{{ u.get_full_name }}</div>
+                  {% if u.can_delegate %}
+                    <span class="badge bg-info-subtle text-info" style="font-size:10px;">delegate</span>
+                  {% endif %}
+                </div>
+              </div>
+            </td>
+            <td class="small text-muted">{{ u.email }}</td>
+            <td>
+              {% if u.role %}
+                <span class="badge bg-secondary bg-opacity-75">{{ u.role.get_name_display }}</span>
+              {% else %}
+                <span class="text-muted small">—</span>
+              {% endif %}
+            </td>
+            <td class="small">{{ u.organization_name|default:"—" }}</td>
+            <td class="small text-muted">{{ u.created_at|date:"d M Y" }}</td>
+            <td>
+              {% if u.is_active %}
+                <span class="badge bg-success">Active</span>
+              {% else %}
+                <span class="badge bg-danger">Inactive</span>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              <div class="d-flex justify-content-end gap-1">
+
+                <!-- Change role -->
+                <form method="POST" action="{% url 'users:change_user_role_view' u.pk %}"
+                      class="d-inline">
+                  {% csrf_token %}
+                  <select name="role" class="form-select form-select-sm d-inline-block w-auto"
+                          onchange="this.form.submit()" title="Change role">
+                    <option value="">— role —</option>
+                    {% for role in roles %}
+                      <option value="{{ role.name }}"
+                        {% if u.role.name == role.name %}selected{% endif %}>
+                        {{ role.get_name_display }}
+                      </option>
+                    {% endfor %}
+                  </select>
+                </form>
+
+                <!-- Toggle active -->
+                {% if u != request.user %}
+                <form method="POST" action="{% url 'users:toggle_user_active_view' u.pk %}">
+                  {% csrf_token %}
+                  <button type="submit"
+                          class="btn btn-sm {% if u.is_active %}btn-outline-danger{% else %}btn-outline-success{% endif %}"
+                          title="{% if u.is_active %}Deactivate{% else %}Activate{% endif %}"
+                          onclick="return confirm('{% if u.is_active %}Deactivate{% else %}Activate{% endif %} {{ u.get_full_name }}?')">
+                    <i class="bi {% if u.is_active %}bi-person-slash{% else %}bi-person-check{% endif %}"></i>
+                  </button>
+                </form>
+                {% endif %}
+
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="7" class="text-center text-muted py-4">No users found.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const searchInput = document.getElementById('searchInput');
+const roleFilter  = document.getElementById('roleFilter');
+const statusFilter= document.getElementById('statusFilter');
+
+function filterTable() {
+  const q      = searchInput.value.toLowerCase();
+  const role   = roleFilter.value;
+  const status = statusFilter.value;
+
+  document.querySelectorAll('#usersTable tbody tr').forEach(row => {
+    const text     = row.textContent.toLowerCase();
+    const rowRole  = row.dataset.role;
+    const rowStatus= row.dataset.status;
+    const matchQ   = !q      || text.includes(q);
+    const matchR   = !role   || rowRole === role;
+    const matchS   = !status || rowStatus === status;
+    row.style.display = (matchQ && matchR && matchS) ? '' : 'none';
+  });
+}
+
+searchInput.addEventListener('input',  filterTable);
+roleFilter.addEventListener('change',  filterTable);
+statusFilter.addEventListener('change',filterTable);
+</script>
+{% endblock %}

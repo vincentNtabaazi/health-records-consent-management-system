@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container my-4">
+
+    <div class="row mb-4">
+        <div class="col-12">
+            <h4 class="fw-semibold">Compliance Dashboard</h4>
+            <p class="text-muted">Scan audit logs for governance violations and compliance summary.</p>
+        </div>
+    </div>
+
+    <!-- Patient selector -->
+    <div class="row mb-4">
+        <div class="col-md-5">
+            <div class="card p-4">
+                <h6 class="fw-semibold mb-3">Select Patient to Audit</h6>
+                <form method="GET">
+                    <div class="mb-3">
+                        <select name="patient_id" class="form-select">
+                            <option value="">-- Select patient --</option>
+                            {% for patient in patients %}
+                            <option value="{{ patient.id }}"
+                                {% if selected_patient and selected_patient.id == patient.id %}selected{% endif %}>
+                                {{ patient.user.first_name }} {{ patient.user.last_name }}
+                                {% if patient.nhs_number %}({{ patient.nhs_number }}){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Run Compliance Check</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Summary cards -->
+        {% if report %}
+        <div class="col-md-7">
+            <div class="row">
+                <div class="col-6 mb-3">
+                    <div class="card p-3 text-center">
+                        <h6 class="text-muted">Total Requests</h6>
+                        <h3>{{ report.total_requests }}</h3>
+                    </div>
+                </div>
+                <div class="col-6 mb-3">
+                    <div class="card p-3 text-center">
+                        <h6 class="text-muted">Compliance Rate</h6>
+                        <h3 class="{% if report.compliance_rate >= 80 %}text-success{% else %}text-danger{% endif %}">
+                            {{ report.compliance_rate }}%
+                        </h3>
+                    </div>
+                </div>
+                <div class="col-4 mb-3">
+                    <div class="card p-3 text-center">
+                        <h6 class="text-muted">Allowed</h6>
+                        <h3 class="text-success">{{ report.allowed }}</h3>
+                    </div>
+                </div>
+                <div class="col-4 mb-3">
+                    <div class="card p-3 text-center">
+                        <h6 class="text-muted">Redacted</h6>
+                        <h3 class="text-warning">{{ report.redacted }}</h3>
+                    </div>
+                </div>
+                <div class="col-4 mb-3">
+                    <div class="card p-3 text-center">
+                        <h6 class="text-muted">Denied</h6>
+                        <h3 class="text-danger">{{ report.denied }}</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Violations -->
+    {% if report %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card p-4">
+                <h6 class="fw-semibold mb-3">
+                    Violations
+                    {% if report.violation_count > 0 %}
+                    <span class="badge bg-danger ms-2">{{ report.violation_count }}</span>
+                    {% else %}
+                    <span class="badge bg-success ms-2">0</span>
+                    {% endif %}
+                </h6>
+
+                {% if report.violations %}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Severity</th>
+                                <th>Type</th>
+                                <th>Requester</th>
+                                <th>Resource</th>
+                                <th>Purpose</th>
+                                <th>Time</th>
+                                <th>Detail</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for v in report.violations %}
+                            <tr>
+                                <td>
+                                    {% if v.severity == 'HIGH' %}
+                                    <span class="badge bg-danger">HIGH</span>
+                                    {% else %}
+                                    <span class="badge bg-warning text-dark">MEDIUM</span>
+                                    {% endif %}
+                                </td>
+                                <td><code>{{ v.type }}</code></td>
+                                <td>{{ v.requester }}</td>
+                                <td>{{ v.resource }}</td>
+                                <td>{{ v.purpose }}</td>
+                                <td>{{ v.time|date:"Y-m-d H:i" }}</td>
+                                <td>{{ v.detail }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-success">
+                    No violations found for this patient.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Recent audit logs -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card p-4">
+                <h6 class="fw-semibold mb-3">Recent Audit Log (All Patients)</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Time</th>
+                                <th>Requester</th>
+                                <th>Patient</th>
+                                <th>Resource</th>
+                                <th>Purpose</th>
+                                <th>Decision</th>
+                                <th>Compliance</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in recent_logs %}
+                            <tr>
+                                <td>{{ log.checked_at|date:"Y-m-d H:i" }}</td>
+                                <td>{{ log.access_request.requester.username }}</td>
+                                <td>{{ log.access_request.patient }}</td>
+                                <td>{{ log.access_request.resource_type }}</td>
+                                <td>{{ log.access_request.purpose }}</td>
+                                <td>
+                                    {% if log.decision == 'allow' %}
+                                    <span class="badge bg-success">ALLOW</span>
+                                    {% elif log.decision == 'limited' %}
+                                    <span class="badge bg-warning text-dark">REDACTED</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">DENY</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if log.compliance_status == 'compliant' %}
+                                    <span class="badge bg-success">Compliant</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">Non-Compliant</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="7" class="text-muted">No audit records found.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

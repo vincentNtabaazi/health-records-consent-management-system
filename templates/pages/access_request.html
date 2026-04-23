@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container my-4">
+
+    <div class="row mb-4">
+        <div class="col-12">
+            <h4 class="fw-semibold">Access Request Evaluation</h4>
+            <p class="text-muted">Submit a data access request to evaluate against active consent policies.</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Form -->
+        <div class="col-md-5 mb-4">
+            <div class="card p-4">
+                <h6 class="fw-semibold mb-3">Request Details</h6>
+                <form method="POST">
+                    {% csrf_token %}
+
+                    <div class="mb-3">
+                        <label class="form-label">Requester</label>
+                        <input type="text" class="form-control" value="{{ request.user.username }} ({{ request.user.role }})" disabled>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Patient</label>
+                        <select name="patient_id" class="form-select" required>
+                            <option value="">-- Select patient --</option>
+                            {% for patient in patients %}
+                            <option value="{{ patient.id }}">
+                                {{ patient.user.first_name }} {{ patient.user.last_name }}
+                                {% if patient.nhs_number %}({{ patient.nhs_number }}){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Data Type</label>
+                        <select name="resource_type" class="form-select" required>
+                            <option value="">-- Select data type --</option>
+                            <option value="lab_results">Lab Results</option>
+                            <option value="diagnosis">Diagnosis</option>
+                            <option value="mental_health">Mental Health</option>
+                            <option value="medication">Medication</option>
+                            <option value="billing">Billing</option>
+                            <option value="imaging">Imaging</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Purpose</label>
+                        <select name="purpose" class="form-select" required>
+                            <option value="">-- Select purpose --</option>
+                            <option value="treatment">Treatment</option>
+                            <option value="research">Research</option>
+                            <option value="audit">Audit</option>
+                            <option value="emergency">Emergency</option>
+                            <option value="insurance">Insurance</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Action</label>
+                        <select name="action" class="form-select">
+                            <option value="read">Read</option>
+                            <option value="write">Write</option>
+                            <option value="share">Share</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100">Evaluate Request</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Result -->
+        {% if submitted %}
+        <div class="col-md-7 mb-4">
+            <div class="card p-4">
+                <h6 class="fw-semibold mb-3">Evaluation Result</h6>
+
+                {% if decision == 'allow' %}
+                <div class="alert alert-success d-flex align-items-center">
+                    <span class="fs-4 me-3">✅</span>
+                    <div>
+                        <strong>ALLOW</strong> — Full access granted.
+                    </div>
+                </div>
+                {% elif decision == 'limited' %}
+                <div class="alert alert-warning d-flex align-items-center">
+                    <span class="fs-4 me-3">⚠️</span>
+                    <div>
+                        <strong>ALLOW WITH REDACTION</strong> — Anonymised data only.
+                    </div>
+                </div>
+                {% else %}
+                <div class="alert alert-danger d-flex align-items-center">
+                    <span class="fs-4 me-3">❌</span>
+                    <div>
+                        <strong>DENY</strong> — Access not permitted.
+                    </div>
+                </div>
+                {% endif %}
+
+                <table class="table table-sm mt-3">
+                    <tr>
+                        <th style="width:35%">Decision</th>
+                        <td>
+                            {% if decision == 'allow' %}
+                            <span class="badge bg-success">ALLOW</span>
+                            {% elif decision == 'limited' %}
+                            <span class="badge bg-warning text-dark">ALLOW WITH REDACTION</span>
+                            {% else %}
+                            <span class="badge bg-danger">DENY</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Reason</th>
+                        <td>{{ reason }}</td>
+                    </tr>
+                    <tr>
+                        <th>Matched Consent</th>
+                        <td>
+                            {% if result.matched_consent %}
+                            {{ result.matched_consent.consent_id }}
+                            {% else %}
+                            <span class="text-muted">None</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Compliance Status</th>
+                        <td>
+                            {% if result.compliance_status == 'compliant' %}
+                            <span class="badge bg-success">Compliant</span>
+                            {% else %}
+                            <span class="badge bg-danger">Non-Compliant</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Evaluated At</th>
+                        <td>{{ result.checked_at }}</td>
+                    </tr>
+                </table>
+
+                <div class="mt-3">
+                    <a href="{% url 'pages:access_request' %}" class="btn btn-outline-secondary btn-sm">
+                        New Request
+                    </a>
+                    <a href="{% url 'pages:compliance_dashboard' %}" class="btn btn-outline-primary btn-sm ms-2">
+                        View Compliance Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+    </div>
+</div>
+{% endblock %}

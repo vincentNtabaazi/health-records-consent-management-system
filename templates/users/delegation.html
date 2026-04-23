@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Delegation — ConsentHub{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+  <div class="row justify-content-center">
+    <div class="col-md-5">
+
+      <div class="d-flex align-items-center gap-2 mb-4">
+        <a href="{% url 'users:profile_view' %}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-arrow-left"></i>
+        </a>
+        <h5 class="mb-0 fw-semibold">Manage delegation</h5>
+      </div>
+
+      <div class="alert alert-info small mb-4">
+        <i class="bi bi-info-circle me-1"></i>
+        Delegation allows another user to act on your behalf. Only users with delegation rights can use this feature.
+      </div>
+
+      <div class="card border-0 shadow-sm">
+        <div class="card-body p-4">
+          <form method="POST" action="{% url 'users:delegation_view' %}">
+            {% csrf_token %}
+            <div class="mb-4">
+              <label class="form-label fw-medium">Delegate authority to</label>
+              <select name="delegate_to" class="form-select">
+                <option value="">— Remove delegation —</option>
+                {% for u in form.delegate_to.field.queryset %}
+                  {% if u != request.user %}
+                    <option value="{{ u.pk }}"
+                      {% if request.user.delegated_to.pk == u.pk %}selected{% endif %}>
+                      {{ u.get_full_name }} ({{ u.role.get_name_display|default:"No role" }})
+                    </option>
+                  {% endif %}
+                {% endfor %}
+              </select>
+            </div>
+            <div class="d-grid">
+              <button type="submit" class="btn btn-info text-white">
+                <i class="bi bi-arrow-left-right me-1"></i> Save delegation
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,4 +1,4 @@
-{% extends 'pages/home.html' %}
+{% extends 'base.html' %}
 {% load static %}
 {% load my_filters %}
 
@@ -9,98 +9,107 @@
     {# Left Column: Medical Records Timeline #}
     <div class="col-lg-8">
         <div class="card shadow-sm mb-4" style="height: 80vh;">
-            <!-- Tabs -->
             <div class="card-header bg-white border-bottom">
-                <ul class="nav nav-tabs card-header-tabs" id="recordTabs" role="tablist">
-                    <li class="nav-item">
-                        <button class="nav-link active" id="timeline-tab" data-bs-toggle="tab"
-                                data-bs-target="#timeline" type="button">
-                            Timeline
-                        </button>
-                    </li>
-                    <li class="nav-item">
-                        <button class="nav-link" id="consents-tab" data-bs-toggle="tab" data-bs-target="#consents"
-                                type="button">
-                            Consents
-                        </button>
-                    </li>
-                </ul>
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <ul class="nav nav-tabs card-header-tabs border-0" id="recordTabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" id="timeline-tab" data-bs-toggle="tab"
+                                    data-bs-target="#timeline" type="button" role="tab">
+                                Timeline
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" id="consents-tab" data-bs-toggle="tab"
+                                    data-bs-target="#consents" type="button" role="tab">
+                                Consents
+                            </button>
+                        </li>
+                    </ul>
+
+                    <div class="d-flex gap-2">
+                    {% if can_manage_sharing_preferences %}
+                        <a class="btn btn-outline-primary btn-sm"
+                           href="{% url 'consents:subject_sharing_preferences' patient.id %}">
+                            <i class="bi bi-sliders me-1"></i> Sharing Preferences
+                        </a>
+                    {% endif %}
+                    {% if request.user.is_authenticated and request.user.role and request.user.role.name != 'subject' %}
+                        <a class="btn btn-primary btn-sm"
+                           href="{% url 'consents:request_consent' patient.id %}">
+                            <i class="bi bi-shield-check me-1"></i> Request Consent
+                        </a>
+                    {% endif %}
+                    </div>
+                </div>
             </div>
 
-            <!-- Tab Content -->
-            <div class="tab-content" style="height: 100%;">
-
-                <!-- TIMELINE TAB -->
-                <div class="tab-pane fade show active h-100" id="timeline">
+            <div class="tab-content h-100">
+                <div class="tab-pane fade show active h-100" id="timeline" role="tabpanel">
                     <div class="card-body p-0 h-100 d-flex flex-column">
                         <div class="table-responsive flex-grow-1" style="overflow-y: auto;">
-                            <table class="table table-borderless mb-0"> {# Using table-borderless #}
+                            <table class="table table-borderless mb-0">
                                 <thead class="bg-light">
                                 <tr>
                                     <th scope="col" class="py-3 px-4 text-muted text-uppercase small">Date</th>
                                     <th scope="col" class="py-3 px-4 text-muted text-uppercase small">Category</th>
                                     <th scope="col" class="py-3 px-4 text-muted text-uppercase small">Title</th>
                                     <th scope="col" class="py-3 px-4 text-muted text-uppercase small"></th>
-                                    {# For icon #}
                                 </tr>
                                 </thead>
                                 <tbody>
                                 {% for record in medical_records %}
-                                <tr class="border-bottom border-light"> {# Subtle border for rows #}
+                                <tr class="border-bottom border-light">
                                     <td class="py-3 px-4 text-nowrap">
                                         <span class="d-block fw-semibold">{{ record.created_at|date:"M d, Y" }}</span>
                                     </td>
                                     <td class="py-3 px-4">
-                                        {# Using Bootstrap colors based on category #}
                                         {% if record.data_category == 'diagnosis' %}
-                                        <span class="badge bg-primary rounded-3 text-uppercase px-3 py-2 fw-normal">{{ record.get_data_category_display }}</span>
+                                            <span class="badge bg-primary rounded-3 text-uppercase px-3 py-2 fw-normal">{{ record.get_data_category_display }}</span>
                                         {% elif record.data_category == 'treatment' %}
-                                        <span class="badge bg-success rounded-3 text-uppercase px-3 py-2 fw-normal">{{ record.get_data_category_display }}</span>
+                                            <span class="badge bg-success rounded-3 text-uppercase px-3 py-2 fw-normal">{{ record.get_data_category_display }}</span>
                                         {% elif record.data_category == 'mental_health' %}
-                                        <span class="badge bg-purple rounded-3 text-uppercase px-3 py-2 fw-normal"
-                                              style="background-color: #6f42c1;">{{ record.get_data_category_display }}</span>
+                                            <span class="badge rounded-3 text-uppercase px-3 py-2 fw-normal" style="background-color: #6f42c1;">{{ record.get_data_category_display }}</span>
                                         {% elif record.data_category == 'billing' %}
-                                        <span class="badge bg-warning rounded-3 text-dark text-uppercase px-3 py-2 fw-normal">{{ record.get_data_category_display }}</span>
+                                            <span class="badge bg-warning rounded-3 text-dark text-uppercase px-3 py-2 fw-normal">{{ record.get_data_category_display }}</span>
                                         {% elif record.data_category == 'lab_results' %}
-                                        <span class="badge bg-danger rounded-3 text-uppercase px-3 py-2 fw-normal">{{ record.get_data_category_display }}</span>
+                                            <span class="badge bg-danger rounded-3 text-uppercase px-3 py-2 fw-normal">{{ record.get_data_category_display }}</span>
                                         {% elif record.data_category == 'medication' %}
-                                        <span class="badge bg-secondary rounded-3 text-uppercase px-3 py-2 fw-normal">{{ record.get_data_category_display }}</span>
+                                            <span class="badge bg-secondary rounded-3 text-uppercase px-3 py-2 fw-normal">{{ record.get_data_category_display }}</span>
                                         {% elif record.data_category == 'allergies' %}
-                                        <span class="badge bg-dark rounded-3 text-uppercase px-3 py-2 fw-normal">{{ record.get_data_category_display }}</span>
+                                            <span class="badge bg-dark rounded-3 text-uppercase px-3 py-2 fw-normal">{{ record.get_data_category_display }}</span>
                                         {% elif record.data_category == 'immunization' %}
-                                        <span class="badge bg-info rounded-3 text-dark text-uppercase px-3 py-2 fw-normal">{{ record.get_data_category_display }}</span>
+                                            <span class="badge bg-info rounded-3 text-dark text-uppercase px-3 py-2 fw-normal">{{ record.get_data_category_display }}</span>
                                         {% else %}
-                                        <span class="badge bg-light rounded-3 text-dark text-uppercase px-3 py-2 fw-normal">{{ record.get_data_category_display }}</span>
+                                            <span class="badge bg-light rounded-3 text-dark text-uppercase px-3 py-2 fw-normal">{{ record.get_data_category_display }}</span>
                                         {% endif %}
                                     </td>
                                     <td class="py-3 px-4 fw-medium text-dark">{{ record.title }}</td>
                                     <td class="py-3 px-4 text-end">
-                                        {# Icons as seen in image for category-specific actions/visuals #}
                                         {% if record.data_category == 'diagnosis' %}
-                                        <i class="bi bi-activity text-primary fs-5"></i>
+                                            <i class="bi bi-activity text-primary fs-5"></i>
                                         {% elif record.data_category == 'treatment' %}
-                                        <i class="bi bi-capsule text-success fs-5"></i>
+                                            <i class="bi bi-capsule text-success fs-5"></i>
                                         {% elif record.data_category == 'mental_health' %}
-                                        <i class="bi bi-emoji-smile text-purple fs-5" style="color: #6f42c1;"></i>
+                                            <i class="bi bi-emoji-smile fs-5" style="color: #6f42c1;"></i>
                                         {% elif record.data_category == 'billing' %}
-                                        <i class="bi bi-currency-dollar text-warning fs-5"></i>
+                                            <i class="bi bi-currency-dollar text-warning fs-5"></i>
                                         {% elif record.data_category == 'lab_results' %}
-                                        <i class="bi bi-clipboard-data text-danger fs-5"></i>
+                                            <i class="bi bi-clipboard-data text-danger fs-5"></i>
                                         {% elif record.data_category == 'medication' %}
-                                        <i class="bi bi-pencil-square text-secondary fs-5"></i>
+                                            <i class="bi bi-pencil-square text-secondary fs-5"></i>
                                         {% elif record.data_category == 'allergies' %}
-                                        <i class="bi bi-exclamation-triangle text-dark fs-5"></i>
+                                            <i class="bi bi-exclamation-triangle text-dark fs-5"></i>
                                         {% elif record.data_category == 'immunization' %}
-                                        <i class="bi bi-shield-check text-info fs-5"></i>
+                                            <i class="bi bi-shield-check text-info fs-5"></i>
                                         {% else %}
-                                        <i class="bi bi-journal text-muted fs-5"></i>
+                                            <i class="bi bi-journal text-muted fs-5"></i>
                                         {% endif %}
                                     </td>
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="4" class="text-center p-4 text-muted">No medical records found for this
-                                        patient.
+                                    <td colspan="4" class="text-center p-4 text-muted">
+                                        No medical records found for this patient.
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -110,271 +119,268 @@
                     </div>
                 </div>
 
-                <!-- CONSENTS TAB -->
-<div class="tab-pane fade h-100" id="consents">
-  <div class="card-body h-100" style="overflow-y: auto;">
+                <div class="tab-pane fade h-100" id="consents" role="tabpanel">
+                    <div class="card-body h-100" style="overflow-y: auto;">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div>
+                                <h5 class="mb-1">Consent Overview</h5>
+                                <p class="text-muted mb-0">Subject sharing preferences, pending requests, and active consents. Non-subject users only see their own requests.</p>
+                            </div>
+                        </div>
 
-    <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-      <div>
-        <h5 class="fw-semibold mb-1" style="font-size: 20px;">Consent Records</h5>
-        <span class="text-muted" style="font-size: 14px;">{{ consents.count }} consent{{ consents.count|pluralize }} on file</span>
-      </div>
-      <button class="btn btn-primary" style="font-size: 15px; padding: 9px 22px;" data-bs-toggle="modal" data-bs-target="#addConsentModal">
-        + Add Consent
-      </button>
-    </div>
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <div class="card border-warning h-100">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <div class="text-muted small text-uppercase">Pending Requests</div>
+                                                <div class="fs-4 fw-bold">{{ pending_consents|length }}</div>
+                                            </div>
+                                            <i class="bi bi-hourglass-split fs-3 text-warning"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
 
-    <!-- Consent Cards -->
-    {% for consent in consents %}
-    <div class="card border rounded-4 mb-3 shadow-sm">
-      <div class="card-body p-4">
+                            <div class="col-md-6">
+                                <div class="card border-success h-100">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <div class="text-muted small text-uppercase">Active Consents</div>
+                                                <div class="fs-4 fw-bold">{{ active_consents|length }}</div>
+                                            </div>
+                                            <i class="bi bi-patch-check fs-3 text-success"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
 
-        <!-- Top row: ID + Status + Policy badge -->
-        <div class="d-flex justify-content-between align-items-start mb-3">
-          <div class="d-flex align-items-center gap-3">
-            <span class="font-monospace text-muted" style="font-size: 13px;">{{ consent.consent_id }}</span>
+                        <h6 class="text-muted text-uppercase small mb-3">Pending Requests</h6>
+                        {% for consent in pending_consents %}
+                            <div class="card mb-3 border-warning-subtle shadow-sm">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                                        <div>
+                                            <div class="fw-semibold">
+                                                {{ consent.data_processor.get_full_name|default:consent.data_processor.username }}
+                                            </div>
+                                            <div class="text-muted small">
+                                                {% if consent.data_processor.role %}
+                                                    {{ consent.data_processor.role.get_name_display }}
+                                                {% endif %}
+                                                {% if consent.data_processor.organization_name %}
+                                                    · {{ consent.data_processor.organization_name }}
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        <span class="badge bg-warning text-dark">Pending</span>
+                                    </div>
 
-            {% if consent.status == "active" %}
-              <span class="badge rounded-pill bg-success-subtle text-success border border-success-subtle" style="font-size: 13px; padding: 5px 13px;">Active</span>
-            {% elif consent.status == "withdrawn" %}
-              <span class="badge rounded-pill bg-secondary-subtle text-secondary border border-secondary-subtle" style="font-size: 13px; padding: 5px 13px;">Withdrawn</span>
-            {% elif consent.status == "expired" %}
-              <span class="badge rounded-pill bg-danger-subtle text-danger border border-danger-subtle" style="font-size: 13px; padding: 5px 13px;">Expired</span>
-            {% elif consent.status == "pending" %}
-              <span class="badge rounded-pill bg-warning-subtle text-warning border border-warning-subtle" style="font-size: 13px; padding: 5px 13px;">Pending</span>
-            {% elif consent.status == "denied" %}
-              <span class="badge rounded-pill bg-danger-subtle text-danger border border-danger-subtle" style="font-size: 13px; padding: 5px 13px;">Denied</span>
-            {% endif %}
+                                    <div class="mt-3">
+                                        <div><strong>Purpose:</strong> {{ consent.purpose|default:"—" }}</div>
+                                        <div><strong>Categories:</strong> {{ consent.data_type|default:"—" }}</div>
+                                        <div><strong>Expires:</strong>
+                                            {% if consent.expiry_date %}
+                                                {{ consent.expiry_date|date:"Y-m-d" }}
+                                            {% else %}
+                                                —
+                                            {% endif %}
+                                        </div>
+                                    </div>
 
-            {% if consent.policy_evaluation_result == "compliant" %}
-              <span class="badge rounded-pill bg-success-subtle text-success border border-success-subtle" style="font-size: 12px; padding: 4px 11px;">
-                ✓ Compliant
-              </span>
-            {% elif consent.policy_evaluation_result == "non-compliant" %}
-              <span class="badge rounded-pill bg-danger-subtle text-danger border border-danger-subtle" style="font-size: 12px; padding: 4px 11px;">
-                ✗ Non-Compliant
-              </span>
-            {% else %}
-              <span class="badge rounded-pill bg-light text-muted border" style="font-size: 12px; padding: 4px 11px;">
-                Policy N/A
-              </span>
-            {% endif %}
-          </div>
+                                    <div class="mt-3 text-end">
+                                        <a class="btn btn-sm btn-outline-secondary"
+                                           href="{% url 'consents:consent_details' consent.id %}">
+                                            Open
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        {% empty %}
+                            <div class="alert alert-light border text-muted">
+                                No pending requests.
+                            </div>
+                        {% endfor %}
 
-          <!-- Action buttons -->
-          <div class="d-flex gap-2">
-            <button class="btn btn-outline-secondary btn-sm"
-                    style="font-size: 14px; padding: 6px 16px;"
-                    data-bs-toggle="modal"
-                    data-bs-target="#editConsentModal"
-                    data-consent-id="{{ consent.id }}"
-                    data-purpose="{{ consent.purpose }}"
-                    data-status="{{ consent.status }}"
-                    data-notes="{{ consent.notes }}"
-                    data-expiry="{{ consent.expiry_date|date:'Y-m-d' }}">
-              Edit
-            </button>
-            {% if consent.status == "active" %}
-            <button class="btn btn-outline-danger btn-sm"
-                    style="font-size: 14px; padding: 6px 16px;"
-                    data-bs-toggle="modal"
-                    data-bs-target="#withdrawConsentModal"
-                    data-consent-id="{{ consent.id }}"
-                    data-consent-ref="{{ consent.consent_id }}">
-              Withdraw
-            </button>
-            {% endif %}
-          </div>
-        </div>
+                        <h6 class="text-muted text-uppercase small mt-4 mb-3">Active Consents</h6>
+                        {% for consent in active_consents %}
+                            <div class="card mb-3 border-success-subtle shadow-sm">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                                        <div>
+                                            <div class="fw-semibold">
+                                                {{ consent.data_processor.get_full_name|default:consent.data_processor.username }}
+                                            </div>
+                                            <div class="text-muted small">
+                                                {% if consent.data_processor.role %}
+                                                    {{ consent.data_processor.role.get_name_display }}
+                                                {% endif %}
+                                                {% if consent.data_processor.organization_name %}
+                                                    · {{ consent.data_processor.organization_name }}
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        <span class="badge bg-success">Active</span>
+                                    </div>
 
-        <hr class="my-3">
+                                    <div class="mt-3">
+                                        <div><strong>Purpose:</strong> {{ consent.purpose|default:"—" }}</div>
+                                        <div><strong>Categories:</strong> {{ consent.data_type|default:"—" }}</div>
+                                        <div><strong>Expires:</strong>
+                                            {% if consent.expiry_date %}
+                                                {{ consent.expiry_date|date:"Y-m-d" }}
+                                            {% else %}
+                                                —
+                                            {% endif %}
+                                        </div>
+                                    </div>
 
-        <!-- Main details grid -->
-        <div class="row g-3 mb-3">
-          <div class="col-md-4">
-            <div class="text-muted mb-1" style="font-size: 12px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600;">Data Category</div>
-            <span class="badge rounded-pill bg-primary-subtle text-primary border border-primary-subtle" style="font-size: 14px; padding: 6px 14px;">
-              {{ consent.data_category }}
-            </span>
-          </div>
-          <div class="col-md-4">
-            <div class="text-muted mb-1" style="font-size: 12px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600;">Consent Type</div>
-            <span class="fw-semibold text-dark" style="font-size: 15px;">{{ consent.get_consent_type_display }}</span>
-          </div>
-          <div class="col-md-4">
-            <div class="text-muted mb-1" style="font-size: 12px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600;">Role</div>
-            <span class="fw-semibold text-dark" style="font-size: 15px;">{{ consent.role }}</span>
-          </div>
-        </div>
+                                    <div class="mt-3 text-end">
+                                        <a class="btn btn-sm btn-outline-success"
+                                           href="{% url 'consents:consent_details' consent.id %}">
+                                            Open
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        {% empty %}
+                            <div class="alert alert-light border text-muted">
+                                No active consents.
+                            </div>
+                        {% endfor %}
 
-        <!-- Purpose -->
-        <div class="mb-3">
-          <div class="text-muted mb-1" style="font-size: 12px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600;">Purpose</div>
-          <p class="mb-0 text-dark" style="font-size: 15px; line-height: 1.6;">{{ consent.purpose }}</p>
-        </div>
-
-        {% if consent.notes %}
-        <!-- Notes -->
-        <div class="mb-3">
-          <div class="text-muted mb-1" style="font-size: 12px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600;">Notes</div>
-          <p class="mb-0 text-muted fst-italic" style="font-size: 14px; line-height: 1.6;">{{ consent.notes }}</p>
-        </div>
-        {% endif %}
-
-        <hr class="my-3">
-
-        <!-- Dates footer -->
-        <div class="row g-2">
-          <div class="col-md-4">
-            <div class="text-muted mb-1" style="font-size: 12px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600;">Created</div>
-            <span class="text-dark" style="font-size: 14px;">{{ consent.created_date|date:"d M Y, H:i" }}</span>
-          </div>
-          <div class="col-md-4">
-            <div class="text-muted mb-1" style="font-size: 12px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600;">Decision Date</div>
-            <span class="text-dark" style="font-size: 14px;">
-              {% if consent.decision_date %}{{ consent.decision_date|date:"d M Y, H:i" }}{% else %}<span class="text-muted">—</span>{% endif %}
-            </span>
-          </div>
-          <div class="col-md-4">
-            <div class="text-muted mb-1" style="font-size: 12px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600;">Expiry Date</div>
-            <span class="{% if consent.status == 'expired' %}text-danger fw-semibold{% else %}text-dark{% endif %}" style="font-size: 14px;">
-              {% if consent.expiry_date %}{{ consent.expiry_date|date:"d M Y, H:i" }}{% else %}<span class="text-muted">—</span>{% endif %}
-            </span>
-          </div>
-        </div>
-
-      </div>
-    </div>
-    {% empty %}
-    <div class="text-center py-5 text-muted">
-      <div style="font-size: 48px;" class="mb-3">📋</div>
-      <p style="font-size: 17px;" class="mb-1 fw-medium">No consent records found</p>
-      <p style="font-size: 14px;">This patient has not provided any consent records yet.</p>
-    </div>
-    {% endfor %}
-
-  </div>
-</div>
+                        <div class="d-flex justify-content-between align-items-center mt-4 mb-3">
+                            <h6 class="text-muted text-uppercase small mb-0">Subject Sharing Preferences</h6>
+                            {% if can_manage_sharing_preferences %}
+                                <a class="btn btn-sm btn-outline-primary" href="{% url 'consents:subject_sharing_preferences' patient.id %}">Edit</a>
+                            {% endif %}
+                        </div>
+                        {% if roles %}
+                            <div class="accordion" id="rolePermissionAccordion">
+                                {% for role in roles %}
+                                    <div class="accordion-item">
+                                        <h2 class="accordion-header" id="heading-role-{{ role.id }}">
+                                            <button class="accordion-button collapsed" type="button"
+                                                    data-bs-toggle="collapse"
+                                                    data-bs-target="#collapse-role-{{ role.id }}"
+                                                    aria-expanded="false"
+                                                    aria-controls="collapse-role-{{ role.id }}">
+                                                {{ role.get_name_display }}
+                                            </button>
+                                        </h2>
+                                        <div id="collapse-role-{{ role.id }}"
+                                             class="accordion-collapse collapse"
+                                             aria-labelledby="heading-role-{{ role.id }}"
+                                             data-bs-parent="#rolePermissionAccordion">
+                                            <div class="accordion-body">
+                                                {% with role_perms=permissions|lookup:role.id %}
+                                                    {% if role_perms %}
+                                                        <div class="d-flex flex-wrap gap-2">
+                                                            {% for perm in role_perms %}
+                                                                <span class="badge bg-secondary">{{ perm.name }}</span>
+                                                            {% endfor %}
+                                                        </div>
+                                                    {% else %}
+                                                        <p class="text-muted mb-0">No patient-specific permissions assigned.</p>
+                                                    {% endif %}
+                                                {% endwith %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="text-muted mb-0">No roles available.</p>
+                        {% endif %}
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-
-    {# Right Column: Patient Details, Upcoming Appointments, Quick Actions #}
     <div class="col-lg-4">
-        {# Patient Details Card #}
         <div class="card shadow-sm mb-4">
             <div class="card-body p-4">
                 <div class="d-flex align-items-center mb-3">
-                    <img src="https://cdn-icons-png.flaticon.com/512/12157/12157353.png" alt="Patient Avatar"
+                    <img src="https://cdn-icons-png.flaticon.com/512/12157/12157353.png"
+                         alt="Patient Avatar"
                          class="rounded-circle me-3 border border-primary"
                          style="width: 60px; height: 60px; object-fit: cover;">
                     <div>
-                        <h5 class="mb-0 fw-semibold text-dark">{{ patient.user.first_name }} {{ patient.user.last_name }}</h5>
+                        <h5 class="mb-0 fw-semibold text-dark">
+                            {{ patient.user.first_name }} {{ patient.user.last_name }}
+                        </h5>
                         <p class="text-muted small mb-0">{{ patient.user.email }}</p>
                     </div>
                 </div>
+
+                <div class="d-grid gap-2 mb-3">
+                    {% if can_manage_sharing_preferences %}
+                        <a class="btn btn-outline-primary"
+                           href="{% url 'consents:subject_sharing_preferences' patient.id %}">
+                            <i class="bi bi-sliders me-2"></i> Manage Sharing Preferences
+                        </a>
+                    {% endif %}
+                    {% if request.user.is_authenticated and request.user.role and request.user.role.name != 'subject' %}
+                        <a class="btn btn-primary"
+                           href="{% url 'consents:request_consent' patient.id %}">
+                            <i class="bi bi-shield-plus me-2"></i> Request Consent
+                        </a>
+                    {% endif %}
+                    <a class="btn btn-outline-secondary"
+                       href="{% url 'pages:consent_records' %}">
+                        <i class="bi bi-card-list me-2"></i> View All Consent Records
+                    </a>
+                </div>
+
                 <h6 class="text-muted text-uppercase small mb-2">Patient Details</h6>
                 <p class="mb-1"><strong>Date Born:</strong> {{ patient.date_of_birth|date:"M d, Y" }}</p>
-                <p class="mb-1"><strong>Contact:</strong> {{ patient.phone_number }}</p>
+                <p class="mb-1"><strong>Contact:</strong> {{ patient.phone_number|default:"—" }}</p>
             </div>
         </div>
 
-        {# Upcoming Appointments Card #}
         <div class="card shadow-sm mb-4">
             <div class="card-body p-4">
                 <h6 class="text-muted text-uppercase small mb-3">Upcoming Appointments</h6>
-                {# Example appointments - you'd fetch these from a related model #}
-                {% if upcoming_appointments %} {# Assuming you pass this context from view #}
-                <ul class="list-group list-group-flush">
-                    {% for appointment in upcoming_appointments %}
-                    <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-2">
-                        <div>
-                            <span class="d-block fw-semibold text-dark">{{ appointment.title }}</span>
-                            <span class="text-muted small">{{ appointment.date_time|date:"M d, H:i" }} with {{ appointment.doctor_name }}</span>
-                        </div>
-                        <i class="bi bi-chevron-right text-muted"></i>
-                    </li>
-                    {% endfor %}
-                </ul>
+                {% if upcoming_appointments %}
+                    <ul class="list-group list-group-flush">
+                        {% for appointment in upcoming_appointments %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-2">
+                                <div>
+                                    <span class="d-block fw-semibold text-dark">{{ appointment.title }}</span>
+                                    <span class="text-muted small">
+                                        {{ appointment.date_time|date:"M d, H:i" }} with {{ appointment.doctor_name }}
+                                    </span>
+                                </div>
+                                <i class="bi bi-chevron-right text-muted"></i>
+                            </li>
+                        {% endfor %}
+                    </ul>
                 {% else %}
-                <p class="text-muted small mb-0">No upcoming appointments.</p>
+                    <p class="text-muted small mb-0">No upcoming appointments.</p>
                 {% endif %}
             </div>
         </div>
 
-        {# Quick Actions Card #}
         <div class="card shadow-sm">
             <div class="card-body p-4">
                 <h6 class="text-muted text-uppercase small mb-3">Quick Actions</h6>
-                <button class="btn btn-primary w-100 py-2 mb-3"><i class="bi bi-plus-circle me-2"></i> Add New Record
-                </button>
-                <button class="btn btn-success w-100 py-2"><i class="bi bi-check-circle-fill me-2"></i> Grant Consent
-                </button>
+                <div class="d-grid gap-2">
+                    {% if can_manage_sharing_preferences %}<button class="btn btn-primary w-100 py-2">
+                        <i class="bi bi-plus-circle me-2"></i> Add New Record
+                    </button>{% endif %}
+                    {% if request.user.is_authenticated and request.user.role and request.user.role.name != 'subject' %}
+                        <a class="btn btn-outline-primary w-100 py-2"
+                           href="{% url 'consents:request_consent' patient.id %}">
+                            <i class="bi bi-shield-check me-2"></i> Start Consent Request
+                        </a>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </div>
-
-
-    <!-- ===================== WITHDRAW CONSENT MODAL ===================== -->
-    <div class="modal fade" id="withdrawConsentModal" tabindex="-1" aria-labelledby="withdrawConsentModalLabel" aria-hidden="true">
-      <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content rounded-4 border-0 shadow">
-          <div class="modal-header border-bottom px-4 py-3">
-            <h5 class="modal-title fw-semibold text-danger" id="withdrawConsentModalLabel" style="font-size: 18px;">Withdraw Consent</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body px-4 py-4">
-            <p style="font-size: 16px;" class="text-dark mb-1">Are you sure you want to withdraw consent</p>
-            <p class="font-monospace text-muted mb-3" style="font-size: 14px;" id="withdrawConsentRef"></p>
-            <div class="alert alert-warning rounded-3 border-0" style="font-size: 14px;">
-              This action will mark the consent as <strong>Withdrawn</strong> and cannot be undone without creating a new consent record.
-            </div>
-          </div>
-          <form method="POST" action="{% url 'consent:consent_withdraw' %}">
-            {% csrf_token %}
-            <input type="hidden" name="consent_id" id="withdrawConsentId">
-            <div class="modal-footer border-top px-4 py-3 gap-2">
-              <button type="button" class="btn btn-outline-secondary" style="font-size: 15px; padding: 9px 22px;" data-bs-dismiss="modal">Cancel</button>
-              <button type="submit" class="btn btn-danger" style="font-size: 15px; padding: 9px 22px;">Yes, Withdraw</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-    </div>
-
-{% block extra_js %}
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-
-    // Edit modal
-    const editModal = document.getElementById('editConsentModal');
-
-    if (editModal) {
-        editModal.addEventListener('show.bs.modal', function (e) {
-            const btn = e.relatedTarget;
-            document.getElementById('editConsentId').value  = btn.dataset.consentId;
-            document.getElementById('editPurpose').value    = btn.dataset.purpose;
-            document.getElementById('editNotes').value      = btn.dataset.notes;
-            document.getElementById('editExpiry').value     = btn.dataset.expiry;
-            document.getElementById('editStatus').value     = btn.dataset.status;
-        });
-    }
-
-    // Withdraw modal
-    const withdrawModal = document.getElementById('withdrawConsentModal');
-
-    if (withdrawModal) {
-        withdrawModal.addEventListener('show.bs.modal', function (e) {
-            const btn = e.relatedTarget;
-            document.getElementById('withdrawConsentId').value = btn.dataset.consentId;
-            document.getElementById('withdrawConsentRef').textContent = btn.dataset.consentRef;
-        });
-    }
-
-});
-</script>
-{% endblock %}
+</div>
 {% endblock %}

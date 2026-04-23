@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}My Profile — ConsentHub{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+
+  <div class="d-flex align-items-center gap-3 mb-4">
+    <span class="rounded-circle bg-primary d-inline-flex align-items-center justify-content-center"
+          style="width:52px;height:52px;">
+      <span class="fw-bold text-white fs-5">
+        {{ request.user.first_name|first }}{{ request.user.last_name|first }}
+      </span>
+    </span>
+    <div>
+      <h4 class="mb-0 fw-semibold">{{ request.user.get_full_name }}</h4>
+      <small class="text-muted">
+        <span class="badge bg-secondary">{{ request.user.role.get_name_display|default:"No role" }}</span>
+        &nbsp;{{ request.user.email }}
+      </small>
+    </div>
+  </div>
+
+  <div class="row g-4">
+
+    <!-- Update profile -->
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body p-4">
+          <h6 class="fw-semibold mb-3"><i class="bi bi-person-gear me-2 text-primary"></i>Profile details</h6>
+          <form method="POST" action="{% url 'users:profile_view' %}">
+            {% csrf_token %}
+            <div class="mb-3">
+              <label class="form-label">First name</label>
+              <input type="text" name="first_name" class="form-control"
+                     value="{{ request.user.first_name }}" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Last name</label>
+              <input type="text" name="last_name" class="form-control"
+                     value="{{ request.user.last_name }}" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Organisation</label>
+              <input type="text" name="organization_name" class="form-control"
+                     value="{{ request.user.organization_name|default:'' }}">
+            </div>
+            <div class="mb-3">
+              <label class="form-label text-muted">Email <small>(cannot be changed)</small></label>
+              <input type="email" class="form-control bg-light" value="{{ request.user.email }}" disabled>
+            </div>
+            <div class="mb-3">
+              <label class="form-label text-muted">Role <small>(contact admin to change)</small></label>
+              <input type="text" class="form-control bg-light"
+                     value="{{ request.user.role.get_name_display|default:'No role' }}" disabled>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">
+              <i class="bi bi-check2 me-1"></i> Save changes
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right column -->
+    <div class="col-md-6 d-flex flex-column gap-4">
+
+      <!-- Change password -->
+      <div class="card border-0 shadow-sm">
+        <div class="card-body p-4">
+          <h6 class="fw-semibold mb-3"><i class="bi bi-shield-lock me-2 text-warning"></i>Change password</h6>
+          <a href="{% url 'users:change_password_view' %}" class="btn btn-outline-warning btn-sm">
+            <i class="bi bi-lock me-1"></i> Update password
+          </a>
+        </div>
+      </div>
+
+      <!-- Delegation -->
+      {% if request.user.can_delegate %}
+      <div class="card border-0 shadow-sm">
+        <div class="card-body p-4">
+          <h6 class="fw-semibold mb-3">
+            <i class="bi bi-person-up me-2 text-info"></i>Delegation
+          </h6>
+          {% if request.user.delegated_to %}
+            <p class="mb-2 small">
+              Currently delegated to:
+              <strong>{{ request.user.delegated_to.get_full_name }}</strong>
+            </p>
+          {% else %}
+            <p class="mb-2 small text-muted">No delegation active.</p>
+          {% endif %}
+          <a href="{% url 'users:delegation_view' %}" class="btn btn-outline-info btn-sm">
+            <i class="bi bi-arrow-left-right me-1"></i> Manage delegation
+          </a>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Account info -->
+      <div class="card border-0 shadow-sm">
+        <div class="card-body p-4">
+          <h6 class="fw-semibold mb-3"><i class="bi bi-clock-history me-2 text-secondary"></i>Account info</h6>
+          <table class="table table-sm table-borderless mb-0 small">
+            <tr><td class="text-muted">Member since</td>
+                <td>{{ request.user.created_at|date:"d M Y" }}</td></tr>
+            <tr><td class="text-muted">Last updated</td>
+                <td>{{ request.user.updated_at|date:"d M Y H:i" }}</td></tr>
+            <tr><td class="text-muted">Status</td>
+                <td>
+                  {% if request.user.is_active %}
+                    <span class="badge bg-success">Active</span>
+                  {% else %}
+                    <span class="badge bg-danger">Inactive</span>
+                  {% endif %}
+                </td></tr>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}
