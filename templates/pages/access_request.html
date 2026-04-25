@@ -26,7 +26,9 @@
 
                     <div class="mb-3">
                         <label class="form-label">Patient</label>
-                        <select name="patient_id" class="form-select" required>
+                        <input type="text" id="patientSearch" class="form-control mb-1" 
+                            placeholder="Type to search patient...">
+                        <select name="patient_id" id="patientSelect" class="form-select" required>
                             <option value="">-- Select patient --</option>
                             {% for patient in patients %}
                             <option value="{{ patient.id }}">
@@ -162,4 +164,21 @@
 
     </div>
 </div>
+
+<script>
+document.getElementById('patientSearch').addEventListener('input', function() {
+    const search = this.value.toLowerCase();
+    const select = document.getElementById('patientSelect');
+    const options = select.querySelectorAll('option');
+    options.forEach(option => {
+        if (option.value === '') return;
+        if (option.text.toLowerCase().includes(search)) {
+            option.style.display = '';
+        } else {
+            option.style.display = 'none';
+        }
+    });
+});
+</script>
+
 {% endblock %}
