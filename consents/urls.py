@@ -22,5 +22,5 @@ urlpatterns = [
     path('<int:consent_id>/withdraw/', withdraw_consent_view, name='withdraw_consent'),
     path('<int:consent_id>/records/', granted_records_view, name='granted_records'),
     path('<int:pk>/', consent_details, name='consent_details'),
-    path('consent_withdraw/', consent_withdraw, name='consent_withdraw'),
+    # path('consent_withdraw/', consent_withdraw, name='consent_withdraw'),
 ]

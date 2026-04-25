@@ -104,10 +104,12 @@ def medical_records(request):
         dict(MedicalRecord.DATA_CATEGORY_CHOICES).get(item['data_category'], item['data_category']): item['count']
         for item in category_counts
     }
-
+    print(page_obj)
     context = {
         'medical_records': page_obj,
         'category_counts': category_counts_dict,
+        'paginator':paginator,
+        'is_paginated': page_obj.has_other_pages(),
     }
     return render(request, 'pages/medical_records.html', context)
 

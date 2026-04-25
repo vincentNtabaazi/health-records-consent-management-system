@@ -78,6 +78,7 @@ class Consent(models.Model):
 
     @property
     def requested_permission_objects(self):
+        print(self)
         return list(CustomPermission.objects.filter(id__in=self.requested_permissions).order_by('name'))
 
     @property

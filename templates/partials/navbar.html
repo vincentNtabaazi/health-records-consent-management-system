@@ -26,12 +26,7 @@
             <i class="bi bi-speedometer2 me-1"></i> Dashboard
           </a>
         </li>
-        <li class="nav-item">
-          <a class="nav-link {% if request.resolver_match.url_name == 'medical_records' %}active{% endif %}"
-             href="{% url 'pages:medical_records' %}">
-            <i class="bi bi-check2-square me-1"></i> Medical Records
-          </a>
-        </li>
+
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'policies' %}active{% endif %}"
              href="{% url 'pages:policies' %}">

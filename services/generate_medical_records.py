@@ -5,7 +5,7 @@ from patients.models import MedicalRecord, Patient
 from users.models import CustomPermission
 
 
-def populate_medical_records(num_records=100, patient_id_start=7, patient_id_end=16):
+def populate_medical_records(num_records=100, patient_id_start=1, patient_id_end=10):
     """
     Populates the MedicalRecord table with sample data.
 
