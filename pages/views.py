@@ -14,6 +14,8 @@ from django.contrib import messages
 from consents.models import AccessRequest, DecisionLog
 from services.policy_engine import evaluate_access
 from services.compliance_checker import check_violations
+from django.utils import timezone
+from datetime import timedelta
 
 
 
@@ -81,12 +83,18 @@ def policies(request):
 @login_required(login_url='users:login_view')
 def dashboard_view(request):
     all_consents = Consent.objects.all()
+    all_patients = Patient.objects.all()
+    last_30_days = timezone.now() - timedelta(days=30)
+
     context = {
         'consent_total': all_consents.count(),
         'consent_active': all_consents.filter(status='active').count(),
         'consent_pending': all_consents.filter(status='pending').count(),
         'consent_withdrawn': all_consents.filter(status='withdrawn').count(),
+        'consent_denied': all_consents.filter(status='denied').count(),
         'recent_consents': all_consents.select_related('patient', 'data_processor')[:5],
+        'all_patients': all_patients.count(),
+        'new_patients_last_30_days': all_patients.filter(user__created_at__gte=last_30_days).count(),
         'recent_patients': Patient.objects.select_related('user').order_by('-id')[:5],
     }
     return render(request, 'pages/dashboard.html', context)
