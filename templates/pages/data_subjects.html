@@ -24,9 +24,9 @@
 
                         <p class="mb-2">
                             <i class="fas fa-file-contract text-primary me-2"></i>
-                            Active Consents:
+                            Active Consents (Your Role):
                             <span class="badge bg-success ms-1">
-                                {{ subject.user.active_consents }}
+                                {{ subject.active_consents_count|default:0 }}
                             </span>
                         </p>
 

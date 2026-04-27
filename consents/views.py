@@ -21,9 +21,19 @@ def _can_request(user):
 
 
 def _can_review(user, consent):
+    """
+    Check if user can review/approve this consent.
+    Note: For GRANTED_BY_SUBJECT, only the data_processor (not the subject) can approve.
+    """
     if not user.is_authenticated:
         return False
     if user.is_staff or user.is_superuser:
+        return True
+    # Don't allow subject to review their own granted consent - only data processor can approve
+    if consent.patient_id == user.id and consent.consent_type == 'GRANTED_BY_SUBJECT':
+        return False
+    # Allow data processor (researcher/processor/regulator/agent) to review GRANTED_BY_SUBJECT
+    if consent.data_processor_id == user.id and consent.consent_type == 'GRANTED_BY_SUBJECT':
         return True
     if consent.patient_id == user.id:
         return True
@@ -108,10 +118,18 @@ def request_consent_view(request, patient_id):
 
 @login_required(login_url='users:login_view')
 def review_pending_consents_view(request):
+    # Show pending consents where user is either:
+    # - The patient (subject) reviewing requests sent to them
+    # - The data_processor (researcher/processor/regulator/agent) reviewing consent offered to them
     pending_consents = (
         Consent.objects
         .select_related('patient', 'data_processor', 'data_processor__role')
-        .filter(Q(patient=request.user) | Q(patient__delegated_to=request.user), status='pending')
+        .filter(
+            Q(patient=request.user) |
+            Q(data_processor=request.user) |
+            Q(patient__delegated_to=request.user),
+            status='pending'
+        )
         .order_by('-created_date')
     )
     return render(request, 'consents/review_consents.html', {'pending_consents': pending_consents})
@@ -139,20 +157,26 @@ def approve_consent_view(request, consent_id):
     if not selected_permission_ids and not request.POST.get('review_submitted'):
         selected_permission_ids = list(consent.requested_permissions)
 
+    # Convert requested_permissions to integers for comparison (they are stored as strings)
+    requested_perms_as_int = set(int(p) for p in consent.requested_permissions)
     selected_permission_ids = [
         permission_id
         for permission_id in selected_permission_ids
-        if permission_id in set(consent.requested_permissions)
+        if permission_id in requested_perms_as_int
     ]
 
     if selected_permission_ids:
-        if set(selected_permission_ids) == set(consent.requested_permissions):
+        # Convert requested_permissions to integers for comparison
+        requested_perms_as_int = set(int(p) for p in consent.requested_permissions)
+        selected_perms_set = set(selected_permission_ids)
+
+        if selected_perms_set == requested_perms_as_int:
             approval_path = Consent.CONSENT_TYPE_MANUAL_REVIEW
         else:
             approval_path = Consent.CONSENT_TYPE_PARTIAL_APPROVAL
 
         consent.approve(selected_permission_ids, approval_path=approval_path)
-        if set(selected_permission_ids) == set(consent.requested_permissions):
+        if selected_perms_set == requested_perms_as_int:
             messages.success(request, 'Consent approved.')
         else:
             messages.success(request, 'Consent partially approved. Only the selected permissions were granted.')
@@ -266,7 +290,9 @@ def consent_details(request, consent_id):
         pk=consent_id,
     )
 
-    if not _can_review(request.user, consent) and request.user.id != consent.data_processor_id:
+    # Allow view if: can review OR is data processor OR is patient (own consent)
+    can_view = _can_review(request.user, consent) or request.user.id == consent.data_processor_id or request.user.id == consent.patient_id
+    if not can_view:
         raise PermissionDenied('You cannot view this consent.')
 
     patient_profile = get_object_or_404(Patient.objects.select_related('user'), user=consent.patient)

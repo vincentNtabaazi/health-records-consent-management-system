@@ -6,6 +6,8 @@ from django.shortcuts import render, redirect
 
 from consents.models import Consent
 from patients.models import MedicalRecord, Patient
+from users.models import User, Role, CustomPermission
+from services.odrl import infer_data_category_from_permission
 
 
 @login_required(login_url='users:login_view')
@@ -15,7 +17,24 @@ def home(request):
 
 @login_required(login_url='users:login_view')
 def data_subjects(request):
-    data_subjects_list = Patient.objects.select_related('user').order_by('id')
+    # Get current user's role
+    user_role = getattr(getattr(request.user, 'role', None), 'name', None)
+
+    # Build query with annotation for active consents count for current user's role
+    from django.db.models import Count, Q, OuterRef, Subquery
+    from consents.models import Consent
+
+    # Annotate with count of active consents where data_processor has the same role as current user
+    data_subjects_list = Patient.objects.select_related('user').annotate(
+        active_consents_count=Subquery(
+            Consent.objects.filter(
+                patient=OuterRef('user'),
+                data_processor__role=request.user.role,
+                status='active'
+            ).values('patient').annotate(c=Count('id')).values('c')[:1]
+        )
+    ).order_by('id')
+
     paginator = Paginator(data_subjects_list, 6)
     page = request.GET.get('page')
     try:
@@ -30,11 +49,17 @@ def data_subjects(request):
 
 @login_required(login_url='users:login_view')
 def consent_records(request):
+    from users.models import User, Role, CustomPermission
+    from patients.models import RolePermission
+
     consent_list = Consent.objects.select_related('patient', 'data_processor')
+
+    user_role = getattr(getattr(request.user, 'role', None), 'name', None)
+    is_subject = (user_role == 'subject')
 
     if request.user.is_staff or request.user.is_superuser:
         consent_list = consent_list.all()
-    elif getattr(getattr(request.user, 'role', None), 'name', None) == 'subject':
+    elif user_role == 'subject':
         consent_list = consent_list.filter(patient=request.user)
     else:
         consent_list = consent_list.filter(data_processor=request.user)
@@ -42,6 +67,85 @@ def consent_records(request):
     consent_list = consent_list.order_by('-id')
     paginator = Paginator(consent_list, 6)
     page = request.GET.get('page')
+
+    # Handle grant consent form (Subject only)
+    grant_form = None
+    available_users = []
+    all_role_permissions = {}
+
+    if is_subject:
+        # Get users of allowed roles (excluding subject)
+        allowed_roles = Role.objects.exclude(name='subject')
+        available_users = User.objects.filter(
+            role__in=allowed_roles,
+            is_active=True
+        ).select_related('role').order_by('username')
+
+        # Get permissions grouped by role
+        for role in allowed_roles:
+            perms = RolePermission.objects.filter(role=role).select_related('permission')
+            perm_list = []
+            for rp in perms:
+                perm_list.append({
+                    'id': rp.permission.id,
+                    'name': rp.permission.name,
+                })
+            all_role_permissions[role.name] = perm_list
+
+        if request.method == 'POST' and 'grant_consent' in request.POST:
+            selected_user_id = request.POST.get('data_processor_id')
+            purpose = request.POST.get('purpose', '')
+            expiry_date = request.POST.get('expiry_date') or None
+            notes = request.POST.get('notes', '')
+            permission_ids = request.POST.getlist('permission_ids')
+
+            if not selected_user_id:
+                messages.error(request, 'Please select a data processor.')
+            elif not permission_ids:
+                messages.error(request, 'Please select at least one permission.')
+            else:
+                selected_user = User.objects.get(id=selected_user_id)
+                selected_role = selected_user.role
+
+                # Validate permissions match the selected user's role
+                allowed_perm_ids = set(
+                    rp.permission_id for rp in RolePermission.objects.filter(role=selected_role)
+                )
+                # Convert permission_ids to integers for comparison
+                selected_perm_ids = set(int(pid) for pid in permission_ids)
+                invalid_perms = selected_perm_ids - allowed_perm_ids
+                if invalid_perms:
+                    messages.error(request, 'Invalid permissions selected for this role.')
+                else:
+                    # Create consent as pending
+                    from datetime import datetime
+                    permissions = list(CustomPermission.objects.filter(id__in=permission_ids))
+                    categories = sorted({infer_data_category_from_permission(perm.name) for perm in permissions})
+
+                    # Convert expiry_date string to date object if provided
+                    expiry_date_obj = None
+                    if expiry_date:
+                        try:
+                            expiry_date_obj = datetime.strptime(expiry_date, '%Y-%m-%d').date()
+                        except ValueError:
+                            pass
+
+                    consent = Consent.objects.create(
+                        patient=request.user,
+                        data_processor=selected_user,
+                        purpose=purpose,
+                        expiry_date=expiry_date_obj,
+                        notes=notes,
+                        data_type=', '.join(categories),
+                        requested_permissions=permission_ids,
+                        status='pending',
+                        consent_type='GRANTED_BY_SUBJECT',
+                    )
+                    consent.build_request_policy()
+                    consent.save(update_fields=['odrl_request'])
+
+                    messages.success(request, f'Consent request sent to {selected_user.get_full_name()}. They need to accept it.')
+                    return redirect('pages:consent_records')
 
     try:
         consents = paginator.page(page)
@@ -55,6 +159,9 @@ def consent_records(request):
         'is_paginated': True,
         'page_obj': consents,
         'paginator': paginator,
+        'grant_form': grant_form,
+        'available_users': available_users,
+        'all_role_permissions': all_role_permissions,
     }
     return render(request, 'pages/consent_records.html', context)
 
@@ -126,7 +233,6 @@ def access_request_view(request):
     # Get authorized records for researcher
     role_name = getattr(getattr(request.user, 'role', None), 'name', None)
     authorized_records = []
-    print(f"DEBUG: role_name = {role_name}")  # Add debug
     if role_name == 'researcher':
         from consents.models import ConsentPolicy
         from patients.models import MedicalRecord
@@ -136,7 +242,6 @@ def access_request_view(request):
             role=request.user.role,
             active=True
         ).select_related('patient', 'patient__user', 'permission')
-        print(f"DEBUG: policies count = {policies.count()}")  # Add debug
 
         # Get records that match these policies
         policy_data = {}
@@ -146,7 +251,6 @@ def access_request_view(request):
             if patient_id not in policy_data:
                 policy_data[patient_id] = set()
             policy_data[patient_id].add(data_category)
-        print(f"DEBUG: policy_data = {policy_data}")  # Add debug
 
         # Query medical records
         for patient_id, categories in policy_data.items():
@@ -154,7 +258,6 @@ def access_request_view(request):
                 patient_id=patient_id,
                 data_category__in=categories
             ).select_related('patient', 'patient__user')
-            print(f"DEBUG: records for patient {patient_id}: {records.count()}")  # Add debug
             for record in records:
                 authorized_records.append({
                     'patient_name': f"{record.patient.user.first_name} {record.patient.user.last_name}",
@@ -163,7 +266,6 @@ def access_request_view(request):
                     'category': record.data_category,
                     'created_at': record.created_at,
                 })
-        print(f"DEBUG: authorized_records length = {len(authorized_records)}")  # Add debug
 
     context = {
         'patients': patients,
