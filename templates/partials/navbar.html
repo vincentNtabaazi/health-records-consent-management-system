@@ -29,11 +29,7 @@
           </a>
         </li>
 
-<<<<<<< HEAD
         {% if request.user.is_authenticated %}
-=======
-        {% if role != 'subject' %}
->>>>>>> 7680acb0223a8b5e4404ef06c47c92993e022bec
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'consent_records' %}active{% endif %}"
              href="{% url 'pages:consent_records' %}">
@@ -68,11 +64,7 @@
         </li>
         {% endif %}
 
-<<<<<<< HEAD
-        {% if role == 'subject' or role == 'processor' or role == 'regulator' or role == 'insurance_agent' or request.user.is_staff %}
-=======
-        {% if role == 'processor' or role == 'regulator' or role == 'insurance_agent' or role == 'researcher' or request.user.is_staff %}
->>>>>>> 7680acb0223a8b5e4404ef06c47c92993e022bec
+        {% if role == 'subject' or role == 'processor' or role == 'regulator' or role == 'insurance_agent' or role == 'researcher' or request.user.is_staff %}
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'data_subjects' %}active{% endif %}"
              href="{% url 'pages:data_subjects' %}">
