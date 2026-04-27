@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container my-4">
+
+    <div class="row mb-4">
+        <div class="col-12">
+            <h4 class="fw-semibold">My Data</h4>
+            <p class="text-muted">View who has accessed your data and your current consent status.</p>
+        </div>
+    </div>
+
+    <!-- Summary cards -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card p-3 text-center">
+                <h6 class="text-muted">Total Access Attempts</h6>
+                <h3>{{ access_logs.count }}</h3>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card p-3 text-center">
+                <h6 class="text-muted">Allowed</h6>
+                <h3 class="text-success">{{ allow_count }}</h3>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card p-3 text-center">
+                <h6 class="text-muted">Redacted</h6>
+                <h3 class="text-warning">{{ redact_count }}</h3>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card p-3 text-center">
+                <h6 class="text-muted">Denied</h6>
+                <h3 class="text-danger">{{ deny_count }}</h3>
+            </div>
+        </div>
+    </div>
+
+    <!-- Who accessed my data -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card p-4">
+                <h6 class="fw-semibold mb-3">Who Accessed My Data</h6>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Time</th>
+                                <th>Requester</th>
+                                <th>Role</th>
+                                <th>Data Type</th>
+                                <th>Purpose</th>
+                                <th>Decision</th>
+                                <th>Consent Used</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in access_logs %}
+                            <tr>
+                                <td>{{ log.checked_at|date:"Y-m-d H:i" }}</td>
+                                <td>{{ log.access_request.requester.get_full_name|default:log.access_request.requester.username }}</td>
+                                <td>
+                                    <span class="badge bg-secondary">
+                                        {{ log.access_request.requester.role }}
+                                    </span>
+                                </td>
+                                <td>{{ log.access_request.resource_type }}</td>
+                                <td>{{ log.access_request.purpose }}</td>
+                                <td>
+                                    {% if log.decision == 'allow' %}
+                                    <span class="badge bg-success">ALLOW</span>
+                                    {% elif log.decision == 'limited' %}
+                                    <span class="badge bg-warning text-dark">REDACTED</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">DENY</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if log.matched_consent %}
+                                    <small class="text-muted">{{ log.matched_consent.consent_id }}</small>
+                                    {% else %}
+                                    <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" class="text-muted text-center">
+                                    No access attempts recorded yet.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- My consents -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card p-4">
+                <h6 class="fw-semibold mb-3">My Consent Records</h6>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Consent ID</th>
+                                <th>Granted To</th>
+                                <th>Data Type</th>
+                                <th>Purpose</th>
+                                <th>Status</th>
+                                <th>Expires</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for consent in my_consents %}
+                            <tr>
+                                <td><small>{{ consent.consent_id }}</small></td>
+                                <td>{{ consent.data_processor.get_full_name }}</td>
+                                <td>{{ consent.data_type }}</td>
+                                <td>{{ consent.purpose }}</td>
+                                <td>
+                                    {% if consent.status == 'active' %}
+                                    <span class="badge bg-success">Active</span>
+                                    {% elif consent.status == 'withdrawn' %}
+                                    <span class="badge bg-danger">Withdrawn</span>
+                                    {% elif consent.status == 'pending' %}
+                                    <span class="badge bg-warning text-dark">Pending</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">{{ consent.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ consent.expiry_date|default:"No expiry" }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="text-muted text-center">
+                                    No consent records found.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

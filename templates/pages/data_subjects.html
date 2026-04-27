@@ -13,7 +13,7 @@
                     <!-- Info Section -->
                     <div class="flex-grow-1">
                         <h5 class="fw-bold mb-1">{{subject.user.first_name}} {{subject.user.last_name}}</h5>
-                        <h6 class="text-muted small mb-3">ID: {{ subject.id }}</h6>
+                        <h6 class="text-muted small mb-3">NHS: {{ subject.nhs_number|default:"N/A" }}</h6>
 
                         <hr>
 

@@ -2,6 +2,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.db.models import Count
 from django.shortcuts import render
+from django.shortcuts import render, redirect
 
 from consents.models import Consent
 from patients.models import MedicalRecord, Patient
@@ -109,35 +110,87 @@ from services.compliance_checker import check_violations
 @login_required(login_url='users:login_view')
 def access_request_view(request):
     patients = Patient.objects.select_related('user').all()
+    mode = request.GET.get('mode', 'single')
+    batch_mode = (mode == 'batch')
+
+    context = {
+        'patients': patients,
+        'batch_mode': batch_mode,
+    }
 
     if request.method == 'POST':
-        patient_id    = request.POST.get('patient_id')
-        resource_type = request.POST.get('resource_type')
-        purpose       = request.POST.get('purpose')
-        action        = request.POST.get('action', 'read')
+        post_mode = request.POST.get('mode', 'single')
 
-        try:
-            patient = Patient.objects.get(id=patient_id)
-            log = evaluate_access(
-                requester=request.user,
-                patient=patient,
-                resource_type=resource_type,
-                purpose=purpose,
-                action=action,
-            )
-            context = {
-                'patients':      patients,
-                'result':        log,
-                'decision':      log.decision,
-                'reason':        log.reason,
-                'submitted':     True,
-            }
-            return render(request, 'pages/access_request.html', context)
+        # Single request
+        if post_mode == 'single':
+            patient_id    = request.POST.get('patient_id')
+            resource_type = request.POST.get('resource_type')
+            purpose       = request.POST.get('purpose')
+            action        = request.POST.get('action', 'read')
+            try:
+                patient = Patient.objects.get(id=patient_id)
+                log = evaluate_access(
+                    requester=request.user,
+                    patient=patient,
+                    resource_type=resource_type,
+                    purpose=purpose,
+                    action=action,
+                )
+                context.update({
+                    'result':    log,
+                    'decision':  log.decision,
+                    'reason':    log.reason,
+                    'submitted': True,
+                    'batch_mode': False,
+                })
+            except Patient.DoesNotExist:
+                messages.error(request, 'Patient not found.')
 
-        except Patient.DoesNotExist:
-            messages.error(request, 'Patient not found.')
+        # Batch search
+        elif post_mode == 'batch_search':
+            resource_type = request.POST.get('resource_type')
+            purpose       = request.POST.get('purpose')
+            matched_patients = Patient.objects.filter(
+                medicalrecord__data_category=resource_type,
+                medicalrecord__record_status='active',
+            ).select_related('user').distinct()
+            context.update({
+                'batch_mode':            True,
+                'matched_patients':      matched_patients,
+                'selected_resource_type': resource_type,
+                'batch_purpose':         purpose,
+            })
 
-    return render(request, 'pages/access_request.html', {'patients': patients})
+        # Batch submit
+        elif post_mode == 'batch_submit':
+            patient_ids   = request.POST.getlist('patient_ids')
+            resource_type = request.POST.get('resource_type')
+            purpose       = request.POST.get('purpose')
+            batch_results = []
+            for pid in patient_ids:
+                try:
+                    patient = Patient.objects.get(id=pid)
+                    log = evaluate_access(
+                        requester=request.user,
+                        patient=patient,
+                        resource_type=resource_type,
+                        purpose=purpose,
+                        action='read',
+                    )
+                    batch_results.append({
+                        'patient':           str(patient),
+                        'decision':          log.decision,
+                        'reason':            log.reason,
+                        'compliance_status': log.compliance_status,
+                    })
+                except Patient.DoesNotExist:
+                    continue
+            context.update({
+                'batch_mode':    True,
+                'batch_results': batch_results,
+            })
+
+    return render(request, 'pages/access_request.html', context)
 
 
 @login_required(login_url='users:login_view')
@@ -167,3 +220,46 @@ def compliance_dashboard_view(request):
         'recent_logs':      recent_logs,
     }
     return render(request, 'pages/compliance_dashboard.html', context)
+
+
+
+
+@login_required(login_url='users:login_view')
+def my_data_view(request):
+    # Only for subject role
+    role = getattr(getattr(request.user, 'role', None), 'name', None)
+    if role != 'subject':
+        messages.error(request, 'This page is only accessible to patients.')
+        return redirect('pages:dashboard_view')
+
+    # Get patient profile
+    try:
+        patient = Patient.objects.get(user=request.user)
+    except Patient.DoesNotExist:
+        messages.error(request, 'Patient profile not found.')
+        return redirect('pages:dashboard_view')
+
+    # Who accessed my data
+    access_logs = DecisionLog.objects.filter(
+        access_request__patient=patient
+    ).select_related(
+        'access_request',
+        'access_request__requester',
+        'access_request__requester__role',
+        'matched_consent',
+    ).order_by('-checked_at')
+
+    # My active consents
+    my_consents = Consent.objects.filter(
+        patient=request.user
+    ).order_by('-created_date')
+
+    context = {
+        'patient':     patient,
+        'access_logs': access_logs,
+        'my_consents': my_consents,
+        'allow_count':   access_logs.filter(decision='allow').count(),
+        'deny_count':    access_logs.filter(decision='deny').count(),
+        'redact_count':  access_logs.filter(decision='limited').count(),
+    }
+    return render(request, 'pages/my_data.html', context)
