@@ -75,6 +75,16 @@ def dashboard_view(request):
         'recent_consents': all_consents.select_related('patient', 'data_processor')[:5],
         'recent_patients': Patient.objects.select_related('user').order_by('-id')[:5],
     }
+
+    # Add patient_id for subject role to access their medical records
+    role = getattr(getattr(request.user, 'role', None), 'name', None)
+    if role == 'subject':
+        try:
+            patient = Patient.objects.get(user=request.user)
+            context['patient_id'] = patient.id
+        except Patient.DoesNotExist:
+            pass
+
     return render(request, 'pages/dashboard.html', context)
 
 
@@ -113,9 +123,52 @@ def access_request_view(request):
     mode = request.GET.get('mode', 'single')
     batch_mode = (mode == 'batch')
 
+    # Get authorized records for researcher
+    role_name = getattr(getattr(request.user, 'role', None), 'name', None)
+    authorized_records = []
+    print(f"DEBUG: role_name = {role_name}")  # Add debug
+    if role_name == 'researcher':
+        from consents.models import ConsentPolicy
+        from patients.models import MedicalRecord
+
+        # Get all active consent policies for this researcher
+        policies = ConsentPolicy.objects.filter(
+            role=request.user.role,
+            active=True
+        ).select_related('patient', 'patient__user', 'permission')
+        print(f"DEBUG: policies count = {policies.count()}")  # Add debug
+
+        # Get records that match these policies
+        policy_data = {}
+        for p in policies:
+            patient_id = p.patient_id
+            data_category = p.data_category
+            if patient_id not in policy_data:
+                policy_data[patient_id] = set()
+            policy_data[patient_id].add(data_category)
+        print(f"DEBUG: policy_data = {policy_data}")  # Add debug
+
+        # Query medical records
+        for patient_id, categories in policy_data.items():
+            records = MedicalRecord.objects.filter(
+                patient_id=patient_id,
+                data_category__in=categories
+            ).select_related('patient', 'patient__user')
+            print(f"DEBUG: records for patient {patient_id}: {records.count()}")  # Add debug
+            for record in records:
+                authorized_records.append({
+                    'patient_name': f"{record.patient.user.first_name} {record.patient.user.last_name}",
+                    'patient_id': record.patient_id,
+                    'title': record.title,
+                    'category': record.data_category,
+                    'created_at': record.created_at,
+                })
+        print(f"DEBUG: authorized_records length = {len(authorized_records)}")  # Add debug
+
     context = {
         'patients': patients,
         'batch_mode': batch_mode,
+        'authorized_records': authorized_records,
     }
 
     if request.method == 'POST':
@@ -256,6 +309,7 @@ def my_data_view(request):
 
     context = {
         'patient':     patient,
+        'patient_id': patient.id,  # For navbar links
         'access_logs': access_logs,
         'my_consents': my_consents,
         'allow_count':   access_logs.filter(decision='allow').count(),
