@@ -11,8 +11,9 @@
         </div>
     </div>
 
-    <!-- Authorized Records Section (Researcher only) -->
-    {% if request.user.role.name == 'researcher' and authorized_records %}
+    <!-- Authorized Records Section -->
+    {% with role=request.user.role.name %}
+    {% if role in allowed_requester_roles and authorized_records %}
     <div class="row mb-4">
         <div class="col-12">
             <div class="card border-success">
@@ -394,5 +395,5 @@ if (selectAll) {
     });
 }
 </script>
-
+{% endwith %}
 {% endblock %}
