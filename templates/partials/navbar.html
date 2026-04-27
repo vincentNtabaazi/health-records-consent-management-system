@@ -64,7 +64,7 @@
         </li>
         {% endif %}
 
-        {% if role == 'subject' or role == 'processor' or role == 'regulator' or role == 'insurance_agent' or role == 'researcher' or request.user.is_staff %}
+        {% if role == 'processor' or role == 'regulator' or role == 'insurance_agent' or role == 'researcher' or request.user.is_staff %}
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'data_subjects' %}active{% endif %}"
              href="{% url 'pages:data_subjects' %}">
@@ -73,7 +73,7 @@
         </li>
         {% endif %}
 
-        {% if role != 'subject' %}
+        {% if role == 'regulator' or request.user.is_staff %}
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'medical_records' %}active{% endif %}"
              href="{% url 'pages:medical_records' %}">
@@ -82,16 +82,22 @@
         </li>
         {% endif %}
 
-        {% if role == 'processor' or role == 'researcher' %}
+        {% if role == 'processor' or role == 'researcher' or role == 'insurance_agent' %}
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'access_request' %}active{% endif %}"
              href="{% url 'pages:access_request' %}">
             <i class="bi bi-shield-check me-1"></i> Access Request
           </a>
         </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'access_history' %}active{% endif %}"
+             href="{% url 'pages:access_history' %}">
+            <i class="bi bi-clock-history me-1"></i> Access History
+          </a>
+        </li>
         {% endif %}
 
-        {% if role == 'researcher' or role == 'regulator' or request.user.is_staff %}
+        {% if role == 'regulator' or request.user.is_staff %}
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'compliance_dashboard' %}active{% endif %}"
              href="{% url 'pages:compliance_dashboard' %}">

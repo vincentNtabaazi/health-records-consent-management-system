@@ -265,6 +265,7 @@ def medical_records(request):
 
 from django.contrib import messages
 from consents.models import AccessRequest, DecisionLog
+from consents.forms import ALLOWED_REQUESTER_ROLES
 from services.policy_engine import evaluate_access
 from services.compliance_checker import check_violations
 
@@ -275,10 +276,10 @@ def access_request_view(request):
     mode = request.GET.get('mode', 'single')
     batch_mode = (mode == 'batch')
 
-    # Get authorized records for researcher
+    # Get authorized records for all allowed requester roles
     role_name = getattr(getattr(request.user, 'role', None), 'name', None)
     authorized_records = []
-    if role_name == 'researcher':
+    if role_name in ALLOWED_REQUESTER_ROLES:
         from consents.models import ConsentPolicy
         from patients.models import MedicalRecord
 
@@ -316,6 +317,7 @@ def access_request_view(request):
         'patients': patients,
         'batch_mode': batch_mode,
         'authorized_records': authorized_records,
+        'allowed_requester_roles': ALLOWED_REQUESTER_ROLES,
     }
 
     if request.method == 'POST':
