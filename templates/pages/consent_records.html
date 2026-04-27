@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load static %}
 
 {% block content %}
 <div class="container py-5">
@@ -6,6 +7,98 @@
         <h1 class="fw-bold">Consent Records</h1>
         <p class="text-muted mb-0">This list is automatically filtered. Subjects only see requests about themselves, and other roles only see requests they submitted.</p>
     </div>
+
+    <!-- Grant Consent Form (Subject only) - Collapsible -->
+    {% with user_role=request.user.role.name %}
+    {% if user_role == 'subject' %}
+    <div class="mb-4">
+        <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#grantConsentForm">
+            <i class="bi bi-plus-circle me-2"></i>Grant Consent to Data Processor
+        </button>
+        <div class="collapse mt-3" id="grantConsentForm">
+            <div class="card border-primary">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Grant Consent to Data Processor</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" class="row g-3">
+                        {% csrf_token %}
+                        <input type="hidden" name="grant_consent" value="1">
+
+                        <div class="col-md-6">
+                            <label class="form-label">Select Data Processor</label>
+                            <select name="data_processor_id" class="form-select" required>
+                                <option value="">-- Select user --</option>
+                                {% for user in available_users %}
+                                <option value="{{ user.id }}">
+                                    {{ user.get_full_name|default:user.username }} ({{ user.role.get_name_display }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Purpose</label>
+                            <select name="purpose" class="form-select">
+                                <option value="">-- Select purpose --</option>
+                                <option value="treatment">Treatment</option>
+                                <option value="research">Research</option>
+                                <option value="audit">Audit</option>
+                                <option value="emergency">Emergency</option>
+                                <option value="insurance">Insurance</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Expiry Date (optional)</label>
+                            <input type="date" name="expiry_date" class="form-control">
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">Notes (optional)</label>
+                            <textarea name="notes" class="form-control" rows="2"></textarea>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">Permissions (select at least one)</label>
+                            <div class="row">
+                                {% for role_name, perms in all_role_permissions.items %}
+                                <div class="col-md-6 mb-3">
+                                    <div class="card">
+                                        <div class="card-header bg-light">
+                                            <strong>{{ role_name|title }}</strong>
+                                        </div>
+                                        <div class="card-body" style="max-height: 200px; overflow-y: auto;">
+                                            {% for perm in perms %}
+                                            <div class="form-check">
+                                                <input class="form-check-input permission-checkbox" type="checkbox"
+                                                       name="permission_ids" value="{{ perm.id }}"
+                                                       id="perm_{{ role_name }}_{{ perm.id }}"
+                                                       data-role="{{ role_name }}">
+                                                <label class="form-check-label" for="perm_{{ role_name }}_{{ perm.id }}">
+                                                    {{ perm.name }}
+                                                </label>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-send me-2"></i>Send Consent Request
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    {% endwith %}
 
     <div class="row">
         {% for consent in consents %}
