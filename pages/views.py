@@ -75,6 +75,16 @@ def dashboard_view(request):
         'recent_consents': all_consents.select_related('patient', 'data_processor')[:5],
         'recent_patients': Patient.objects.select_related('user').order_by('-id')[:5],
     }
+
+    # Add patient_id for subject role to access their medical records
+    role = getattr(getattr(request.user, 'role', None), 'name', None)
+    if role == 'subject':
+        try:
+            patient = Patient.objects.get(user=request.user)
+            context['patient_id'] = patient.id
+        except Patient.DoesNotExist:
+            pass
+
     return render(request, 'pages/dashboard.html', context)
 
 
@@ -256,6 +266,7 @@ def my_data_view(request):
 
     context = {
         'patient':     patient,
+        'patient_id': patient.id,  # For navbar links
         'access_logs': access_logs,
         'my_consents': my_consents,
         'allow_count':   access_logs.filter(decision='allow').count(),

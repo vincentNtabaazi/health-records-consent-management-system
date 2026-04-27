@@ -29,7 +29,7 @@
           </a>
         </li>
 
-        {% if role != 'researcher' %}
+        {% if role != 'subject' %}
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'consent_records' %}active{% endif %}"
              href="{% url 'pages:consent_records' %}">
@@ -46,6 +46,12 @@
             <i class="bi bi-person-lines-fill me-1"></i> My Data
           </a>
         </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'patient_medical_timeline' %}active{% endif %}"
+              href="{% url 'patients:patient_medical_timeline' subject_patient_id %}">
+            <i class="bi bi-file-earmark-medical me-1"></i> My Medical Records
+          </a>
+        </li>
         {% endif %}
 
 
@@ -58,7 +64,7 @@
         </li>
         {% endif %}
 
-        {% if role == 'processor' or role == 'regulator' or role == 'insurance_agent' or request.user.is_staff %}
+        {% if role == 'processor' or role == 'regulator' or role == 'insurance_agent' or role == 'researcher' or request.user.is_staff %}
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'data_subjects' %}active{% endif %}"
              href="{% url 'pages:data_subjects' %}">

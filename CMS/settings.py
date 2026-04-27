@@ -68,6 +68,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'pages.templatetags.context_processors.subject_context',
             ],
         },
     },
@@ -84,7 +85,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'cms',
         'USER': 'root',
-        'PASSWORD': 'Great2025',
+        'PASSWORD': '',
         'HOST': 'localhost',
         'PORT': '3306'
     }
