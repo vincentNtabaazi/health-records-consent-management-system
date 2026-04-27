@@ -107,6 +107,15 @@ def consent_records(request):
                 selected_user = User.objects.get(id=selected_user_id)
                 selected_role = selected_user.role
 
+                # Convert expiry_date string to date object
+                from datetime import datetime
+                expiry_date_obj = None
+                if expiry_date:
+                    try:
+                        expiry_date_obj = datetime.strptime(expiry_date, '%Y-%m-%d').date()
+                    except ValueError:
+                        pass
+
                 # Validate permissions match the selected user's role
                 allowed_perm_ids = set(
                     rp.permission_id for rp in RolePermission.objects.filter(role=selected_role)
@@ -117,18 +126,54 @@ def consent_records(request):
                 if invalid_perms:
                     messages.error(request, 'Invalid permissions selected for this role.')
                 else:
+                    # Check for duplicate consent
+                    # If user selects permissions that ALL already exist in existing consents (with same subject/processor/date), warn
+                    permission_ids_as_str = [str(pid) for pid in permission_ids]
+
+                    # Find existing consents with matching subject, processor, expiry_date and status
+                    existing_consents = Consent.objects.filter(
+                        patient=request.user,
+                        data_processor=selected_user,
+                        expiry_date=expiry_date_obj,
+                        status__in=['pending', 'active']
+                    )
+
+                    # Collect ALL permissions from ALL existing consents
+                    all_existing_perms = set()
+                    for c in existing_consents:
+                        all_existing_perms.update(str(p) for p in c.requested_permissions)
+
+                    # Check if ALL input permissions are covered by existing consents
+                    input_perms_set = set(permission_ids_as_str)
+                    existing_consent = None
+                    if input_perms_set.issubset(all_existing_perms):
+                        # Find the consent that has the most overlap to show in warning
+                        existing_consent = existing_consents.first()
+
+                    if existing_consent and not request.POST.get('confirm_create'):
+                        # Show confirmation form instead of creating
+                        return render(request, 'pages/consent_records.html', {
+                            'consents': paginator.page(1),
+                            'is_paginated': False,
+                            'page_obj': paginator.page(1),
+                            'paginator': paginator,
+                            'grant_form': None,
+                            'available_users': available_users,
+                            'all_role_permissions': all_role_permissions,
+                            'duplicate_warning': True,
+                            'existing_consent': existing_consent,
+                            'confirm_data': {
+                                'user_id': selected_user_id,
+                                'purpose': purpose,
+                                'expiry_date': expiry_date,
+                                'notes': notes,
+                                'permission_ids': permission_ids,
+                            }
+                        })
+
                     # Create consent as pending
-                    from datetime import datetime
                     permissions = list(CustomPermission.objects.filter(id__in=permission_ids))
                     categories = sorted({infer_data_category_from_permission(perm.name) for perm in permissions})
-
-                    # Convert expiry_date string to date object if provided
-                    expiry_date_obj = None
-                    if expiry_date:
-                        try:
-                            expiry_date_obj = datetime.strptime(expiry_date, '%Y-%m-%d').date()
-                        except ValueError:
-                            pass
 
                     consent = Consent.objects.create(
                         patient=request.user,

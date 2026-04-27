@@ -79,6 +79,48 @@ def request_consent_view(request, patient_id):
             permissions = list(CustomPermission.objects.filter(id__in=permission_ids))
             categories = sorted({infer_data_category_from_permission(perm.name) for perm in permissions})
 
+            # Check for duplicate consent (same logic as grant consent)
+            expiry_date_obj = form.cleaned_data.get('expiry_date')
+            existing_consents = Consent.objects.filter(
+                patient=patient.user,
+                data_processor=request.user,
+                expiry_date=expiry_date_obj,
+                status__in=['pending', 'active']
+            )
+
+            # Collect ALL permissions from ALL existing consents
+            all_existing_perms = set()
+            for c in existing_consents:
+                all_existing_perms.update(str(p) for p in c.requested_permissions)
+
+            # Check if ALL requested permissions are already covered
+            permission_ids_as_str = [str(pid) for pid in permission_ids]
+            input_perms_set = set(permission_ids_as_str)
+            existing_consent = None
+            if input_perms_set.issubset(all_existing_perms):
+                # Already have consent covering these permissions
+                existing_consent = existing_consents.first()
+
+            # If duplicate and no confirmation, show confirmation page
+            if existing_consent and not request.POST.get('confirm_create'):
+                context = {
+                    'patient': patient,
+                    'form': form,
+                    'grouped_permissions': form.grouped_permissions,
+                    'selected_permission_ids': {str(value) for value in request.POST.getlist('permission_ids')},
+                    'preconsented_permission_ids': {str(item) for item in preconsented_permission_ids},
+                    'duplicate_warning': True,
+                    'existing_consent': existing_consent,
+                    'confirm_data': {
+                        'patient_id': patient_id,
+                        'permission_ids': permission_ids,
+                        'purpose': form.cleaned_data.get('purpose'),
+                        'expiry_date': form.cleaned_data.get('expiry_date'),
+                        'notes': form.cleaned_data.get('notes'),
+                    }
+                }
+                return render(request, 'consents/request_consent.html', context)
+
             consent = form.save(commit=False)
             consent.patient = patient.user
             consent.data_processor = request.user
