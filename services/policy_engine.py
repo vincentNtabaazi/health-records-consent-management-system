@@ -113,9 +113,21 @@ def _apply_governance_rules(requester, patient, resource_type, purpose):
         return DECISION_DENY, 'Request denied: purpose field is empty.', None
 
     # Rule 2: check consent record exists
-    consent = Consent.objects.filter(
-        patient=patient.user,
-    ).order_by('-created_date').first()
+    # For researcher: any active consent from the patient is sufficient
+    # For others: check consent exists for this specific requester
+    role = getattr(requester, 'role', None)
+    role_name = role.name if role else None
+
+    if role_name == 'researcher':
+        consent = Consent.objects.filter(
+            patient=patient.user,
+            status='active',
+        ).order_by('-created_date').first()
+    else:
+        consent = Consent.objects.filter(
+            patient=patient.user,
+            status='active',
+        ).order_by('-created_date').first()
 
     if not consent:
         return DECISION_DENY, 'Request denied: no consent record found for this patient.', None
