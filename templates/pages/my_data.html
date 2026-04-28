@@ -5,9 +5,16 @@
 <div class="container my-4">
 
     <div class="row mb-4">
-        <div class="col-12">
-            <h4 class="fw-semibold">My Data</h4>
-            <p class="text-muted">View who has accessed your data and your current consent status.</p>
+        <div class="col-12 d-flex justify-content-between align-items-start flex-wrap gap-3">
+            <div>
+                <h4 class="fw-semibold">My Data</h4>
+                <p class="text-muted mb-0">View who has accessed your data and your current consent status.</p>
+            </div>
+            {% if request.user.role and request.user.role.name == 'subject' %}
+            <a class="btn btn-outline-primary" href="{% url 'consents:my_subject_sharing_preferences' %}">
+                <i class="bi bi-sliders me-1"></i> Manage My Preferences
+            </a>
+            {% endif %}
         </div>
     </div>
 

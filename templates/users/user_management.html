@@ -83,7 +83,20 @@
                 <span class="text-muted small">—</span>
               {% endif %}
             </td>
-            <td class="small">{{ u.organization_name|default:"—" }}</td>
+            <td class="small">
+              <form method="POST" action="{% url 'users:change_user_organization_view' u.pk %}" class="d-flex gap-1 align-items-center">
+                {% csrf_token %}
+                <input type="text"
+                       name="organization_name"
+                       value="{{ u.organization_name|default:'' }}"
+                       class="form-control form-control-sm"
+                       placeholder="Organisation"
+                       style="min-width:150px;">
+                <button type="submit" class="btn btn-sm btn-outline-primary" title="Save organisation">
+                  <i class="bi bi-check2"></i>
+                </button>
+              </form>
+            </td>
             <td class="small text-muted">{{ u.created_at|date:"d M Y" }}</td>
             <td>
               {% if u.is_active %}
