@@ -39,7 +39,7 @@
         {% endif %}
 
 
-        {% if role == 'subject' %}
+        {% if role  == 'subject' %}
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'my_data' %}active{% endif %}"
               href="{% url 'pages:my_data' %}">
