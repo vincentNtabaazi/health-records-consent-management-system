@@ -97,7 +97,7 @@
         </li>
         {% endif %}
 
-        {% if role == 'regulator' or request.user.is_staff %}
+        {% if role == 'regulator' or request.user.is_superuser or request.user.is_staff %}
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'compliance_dashboard' %}active{% endif %}"
              href="{% url 'pages:compliance_dashboard' %}">
