@@ -1,3 +1,5 @@
+import csv
+from django.http import HttpResponse
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.db.models import Count
@@ -8,6 +10,7 @@ from consents.models import Consent
 from patients.models import MedicalRecord, Patient
 from users.models import User, Role, CustomPermission
 from services.odrl import infer_data_category_from_permission
+from datetime import datetime
 
 
 @login_required(login_url='users:login_view')
@@ -451,6 +454,32 @@ def access_request_view(request):
     return render(request, 'pages/access_request.html', context)
 
 
+def get_visible_decision_logs_for_user(user):
+    role = getattr(getattr(user, 'role', None), 'name', None)
+    is_global_auditor = user.is_staff or user.is_superuser or role == 'regulator'
+
+    base_logs = DecisionLog.objects.select_related(
+        'access_request',
+        'access_request__requester',
+        'access_request__requester__role',
+        'access_request__patient',
+        'access_request__patient__user',
+        'matched_consent',
+    )
+
+    if is_global_auditor:
+        return base_logs.all()
+
+    if role == 'subject':
+        try:
+            subject_patient = Patient.objects.get(user=user)
+            return base_logs.filter(access_request__patient=subject_patient)
+        except Patient.DoesNotExist:
+            return base_logs.none()
+
+    return base_logs.filter(access_request__requester=user)
+
+
 @login_required(login_url='users:login_view')
 def compliance_dashboard_view(request):
     role = getattr(getattr(request.user, 'role', None), 'name', None)
@@ -551,6 +580,65 @@ def compliance_dashboard_view(request):
         'non_compliant_count': non_compliant_count,
     }
     return render(request, 'pages/compliance_dashboard.html', context)
+
+
+@login_required(login_url='users:login_view')
+def export_audit_logs_csv(request):
+    logs = get_visible_decision_logs_for_user(request.user).order_by('-checked_at')
+
+    decision_filter = request.GET.get('decision', 'all')
+    compliance_filter = request.GET.get('compliance', 'all')
+    patient_id = request.GET.get('patient_id')
+
+    if decision_filter in ['allow', 'deny', 'limited']:
+        logs = logs.filter(decision=decision_filter)
+
+    if compliance_filter in ['compliant', 'non_compliant']:
+        logs = logs.filter(compliance_status=compliance_filter)
+
+    if patient_id:
+        logs = logs.filter(access_request__patient_id=patient_id)
+
+    response = HttpResponse(content_type='text/csv')
+
+    filename = f'audit_logs_{datetime.now().strftime("%Y%m%d_%H%M")}.csv'
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+    writer = csv.writer(response)
+    writer.writerow([
+        'Checked At',
+        'Requester',
+        'Requester Role',
+        'Patient',
+        'Resource Type',
+        'Purpose',
+        'Action',
+        'Decision',
+        'Compliance Status',
+        'Matched Consent',
+        'Reason',
+    ])
+
+    for log in logs:
+        access_request = log.access_request
+        requester = access_request.requester
+        requester_role = getattr(getattr(requester, 'role', None), 'name', '')
+
+        writer.writerow([
+            log.checked_at.strftime('%d-%b-%Y %H:%M') if log.checked_at else '',
+            requester.username if requester else '',
+            requester_role,
+            str(access_request.patient) if access_request.patient else '',
+            access_request.resource_type,
+            access_request.purpose,
+            access_request.action,
+            log.decision,
+            log.compliance_status,
+            log.matched_consent.consent_id if log.matched_consent else '',
+            log.reason.replace('\n', ' ') if log.reason else '',
+        ])
+
+    return response
 
 
 @login_required(login_url='users:login_view')

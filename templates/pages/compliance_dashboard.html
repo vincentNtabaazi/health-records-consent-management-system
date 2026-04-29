@@ -243,7 +243,11 @@
 
                     <div class="col-md-4 d-flex align-items-end">
                         <button type="submit" class="btn btn-outline-primary btn-sm me-2">Apply Filters</button>
-                        <a href="{% url 'pages:compliance_dashboard' %}" class="btn btn-outline-secondary btn-sm">Reset</a>
+                        <a href="{% url 'pages:compliance_dashboard' %}" class="btn btn-outline-secondary btn-sm me-2">Reset</a>
+                        <a href="{% url 'pages:export_audit_logs_csv' %}?decision={{ decision_filter }}&compliance={{ compliance_filter }}{% if selected_patient %}&patient_id={{ selected_patient.id }}{% endif %}"
+                           class="btn btn-outline-success btn-sm">
+                            Export CSV
+                        </a>
                     </div>
                 </form>
 
