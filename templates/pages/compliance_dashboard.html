@@ -6,19 +6,71 @@
 
     <div class="row mb-4">
         <div class="col-12">
-            <h4 class="fw-semibold">Compliance Dashboard</h4>
-            <p class="text-muted">Scan audit logs for governance violations and compliance summary.</p>
+            {% if dashboard_scope == 'global' %}
+                <h4 class="fw-semibold">Global Compliance Dashboard</h4>
+            {% elif dashboard_scope == 'subject' %}
+                <h4 class="fw-semibold">My Data Access History</h4>
+            {% else %}
+                <h4 class="fw-semibold">My Access Audit</h4>
+            {% endif %}
+
+            <p class="text-muted mb-1">{{ scope_description }}</p>
+
+            {% if dashboard_scope == 'global' %}
+                <span class="badge bg-primary">Global auditor view</span>
+            {% elif dashboard_scope == 'subject' %}
+                <span class="badge bg-info text-dark">Data subject view</span>
+            {% else %}
+                <span class="badge bg-secondary">Requester-scoped view</span>
+            {% endif %}
         </div>
     </div>
+
+
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card p-3 text-center">
+                <h6 class="text-muted">Visible Requests</h6>
+                <h3>{{ total_visible_logs }}</h3>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card p-3 text-center">
+                <h6 class="text-muted">Allowed</h6>
+                <h3 class="text-success">{{ allowed_count }}</h3>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card p-3 text-center">
+                <h6 class="text-muted">Redacted</h6>
+                <h3 class="text-warning">{{ redacted_count }}</h3>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card p-3 text-center">
+                <h6 class="text-muted">Non-Compliant</h6>
+                <h3 class="text-danger">{{ non_compliant_count }}</h3>
+            </div>
+        </div>
+    </div>
+
 
     <!-- Patient selector -->
     <div class="row mb-4">
         <div class="col-md-5">
             <div class="card p-4">
-                <h6 class="fw-semibold mb-3">Select Patient to Audit</h6>
+                <h6 class="fw-semibold mb-3">
+                    {% if dashboard_scope == 'global' %}
+                        Select Patient to Audit
+                    {% elif dashboard_scope == 'subject' %}
+                        My Patient Record
+                    {% else %}
+                        Select Patient From My Requests
+                    {% endif %}
+                </h6>
                 <form method="GET">
                     <div class="mb-3">
-                        <select name="patient_id" class="form-select">
+                        <select name="patient_id" class="form-select" {% if not patients %}disabled{% endif %}>
                             <option value="">-- Select patient --</option>
                             {% for patient in patients %}
                             <option value="{{ patient.id }}"
@@ -28,8 +80,22 @@
                             </option>
                             {% endfor %}
                         </select>
+
+                        {% if not patients %}
+                            <div class="form-text text-muted mt-2">
+                                No patient records are visible under your current role and audit scope.
+                            </div>
+                        {% endif %}
                     </div>
-                    <button type="submit" class="btn btn-primary w-100">Run Compliance Check</button>
+                    <button type="submit" class="btn btn-primary w-100" {% if not patients %}disabled{% endif %}>
+                        {% if dashboard_scope == 'global' %}
+                            Run Compliance Check
+                        {% elif dashboard_scope == 'subject' %}
+                            View My Compliance Summary
+                        {% else %}
+                            Review My Requests for This Patient
+                        {% endif %}
+                    </button>
                 </form>
             </div>
         </div>
@@ -138,7 +204,15 @@
     <div class="row">
         <div class="col-12">
             <div class="card p-4">
-                <h6 class="fw-semibold mb-3">Recent Audit Log (All Patients)</h6>
+                <h6 class="fw-semibold mb-3">
+                    {% if dashboard_scope == 'global' %}
+                        Recent Audit Log (All Patients)
+                    {% elif dashboard_scope == 'subject' %}
+                        My Data Access Log
+                    {% else %}
+                        My Access Request Log
+                    {% endif %}
+                </h6>
                 <div class="table-responsive">
                     <table class="table table-sm table-hover align-middle">
                         <thead class="table-light">
