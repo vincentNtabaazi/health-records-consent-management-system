@@ -12,8 +12,8 @@ urlpatterns = [
     path('dashboard/', dashboard_view, name='dashboard_view'),
     path('medical_records/', medical_records, name='medical_records'),
     path('access_request/', access_request_view, name='access_request'),
-    path('access_history/', access_history_view, name='access_history'),
     path('compliance/', compliance_dashboard_view, name='compliance_dashboard'),
+    path('access_history/', access_history_view, name='access_history'),
     path('my_data/', my_data_view, name='my_data'),
 ]
 
