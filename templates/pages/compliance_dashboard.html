@@ -224,6 +224,7 @@
                                 <th>Purpose</th>
                                 <th>Decision</th>
                                 <th>Compliance</th>
+                                <th>Reason</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -248,6 +249,15 @@
                                     <span class="badge bg-success">Compliant</span>
                                     {% else %}
                                     <span class="badge bg-danger">Non-Compliant</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if log.reason %}
+                                    <span class="text-muted small" title="{{ log.reason }}">
+                                        {{ log.reason|truncatechars:50 }}
+                                    </span>
+                                    {% else %}
+                                    <span class="text-muted small">-</span>
                                     {% endif %}
                                 </td>
                             </tr>
