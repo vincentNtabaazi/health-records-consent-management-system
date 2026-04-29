@@ -154,7 +154,6 @@
                     <span class="badge bg-success ms-2">0</span>
                     {% endif %}
                 </h6>
-
                 {% if report.violations %}
                 <div class="table-responsive">
                     <table class="table table-hover align-middle">
@@ -213,6 +212,37 @@
                         My Access Request Log
                     {% endif %}
                 </h6>
+
+                <form method="get" class="row g-2 mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label small text-muted">Decision</label>
+                        <select name="decision" class="form-select form-select-sm">
+                            <option value="all" {% if decision_filter == 'all' %}selected{% endif %}>All decisions</option>
+                            <option value="allow" {% if decision_filter == 'allow' %}selected{% endif %}>Allowed only</option>
+                            <option value="deny" {% if decision_filter == 'deny' %}selected{% endif %}>Denied only</option>
+                            <option value="limited" {% if decision_filter == 'limited' %}selected{% endif %}>Redacted only</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label small text-muted">Compliance</label>
+                        <select name="compliance" class="form-select form-select-sm">
+                            <option value="all" {% if compliance_filter == 'all' %}selected{% endif %}>All compliance statuses</option>
+                            <option value="compliant" {% if compliance_filter == 'compliant' %}selected{% endif %}>Compliant only</option>
+                            <option value="non_compliant" {% if compliance_filter == 'non_compliant' %}selected{% endif %}>Non-compliant only</option>
+                        </select>
+                    </div>
+
+                    {% if selected_patient %}
+                        <input type="hidden" name="patient_id" value="{{ selected_patient.id }}">
+                    {% endif %}
+
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button type="submit" class="btn btn-outline-primary btn-sm me-2">Apply Filters</button>
+                        <a href="{% url 'pages:compliance_dashboard' %}" class="btn btn-outline-secondary btn-sm">Reset</a>
+                    </div>
+                </form>
+
                 <div class="table-responsive">
                     <table class="table table-sm table-hover align-middle">
                         <thead class="table-light">
@@ -262,7 +292,7 @@
                                 </td>
                             </tr>
                             {% empty %}
-                            <tr><td colspan="7" class="text-muted">No audit records found.</td></tr>
+                            <tr><td colspan="8" class="text-muted">No audit records found.</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>

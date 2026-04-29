@@ -515,7 +515,18 @@ def compliance_dashboard_view(request):
     if role == 'subject' and selected_patient and report is None:
         report = check_violations(selected_patient)
 
-    recent_logs = visible_logs.order_by('-checked_at')[:20]
+    decision_filter = request.GET.get('decision', 'all')
+    compliance_filter = request.GET.get('compliance', 'all')
+
+    filtered_logs = visible_logs
+
+    if decision_filter in ['allow', 'deny', 'limited']:
+        filtered_logs = filtered_logs.filter(decision=decision_filter)
+
+    if compliance_filter in ['compliant', 'non_compliant']:
+        filtered_logs = filtered_logs.filter(compliance_status=compliance_filter)
+
+    recent_logs = filtered_logs.order_by('-checked_at')[:20]
 
     total_visible_logs = visible_logs.count()
     allowed_count = visible_logs.filter(decision='allow').count()
@@ -528,6 +539,8 @@ def compliance_dashboard_view(request):
         'selected_patient': selected_patient,
         'report': report,
         'recent_logs': recent_logs,
+        'decision_filter': decision_filter,
+        'compliance_filter': compliance_filter,
         'dashboard_scope': dashboard_scope,
         'scope_description': scope_description,
         'is_global_auditor': is_global_auditor,
