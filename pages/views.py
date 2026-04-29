@@ -456,6 +456,10 @@ def compliance_dashboard_view(request):
     role = getattr(getattr(request.user, 'role', None), 'name', None)
     is_global_auditor = request.user.is_staff or request.user.is_superuser or role == 'regulator'
 
+    if role == 'subject':
+        messages.info(request, 'Patients can view their access transparency report in My Data.')
+        return redirect('pages:my_data')
+
     selected_patient = None
     report = None
 
