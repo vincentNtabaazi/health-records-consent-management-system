@@ -589,6 +589,8 @@ def export_audit_logs_csv(request):
     decision_filter = request.GET.get('decision', 'all')
     compliance_filter = request.GET.get('compliance', 'all')
     patient_id = request.GET.get('patient_id')
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
 
     if decision_filter in ['allow', 'deny', 'limited']:
         logs = logs.filter(decision=decision_filter)
@@ -598,6 +600,12 @@ def export_audit_logs_csv(request):
 
     if patient_id:
         logs = logs.filter(access_request__patient_id=patient_id)
+
+    if start_date:
+        logs = logs.filter(checked_at__date__gte=start_date)
+
+    if end_date:
+        logs = logs.filter(checked_at__date__lte=end_date)
 
     response = HttpResponse(content_type='text/csv')
 
