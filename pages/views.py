@@ -605,6 +605,10 @@ def export_audit_logs_csv(request):
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
 
     writer = csv.writer(response)
+    writer.writerow(['Generated At', datetime.now().strftime('%d-%b-%Y %H:%M')])
+    writer.writerow(['Export Scope', 'Role-scoped audit logs based on current user permissions'])
+    writer.writerow([])
+
     writer.writerow([
         'Checked At',
         'Requester',
