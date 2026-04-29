@@ -270,7 +270,7 @@ from django.contrib import messages
 from consents.models import AccessRequest, DecisionLog
 from consents.forms import ALLOWED_REQUESTER_ROLES
 from services.policy_engine import evaluate_access
-from services.compliance_checker import check_violations
+from services.compliance_checker import check_violations, get_expiring_consents_for_patient, auto_expire_consents
 
 
 def build_requester_scoped_compliance_report(logs):
@@ -667,6 +667,12 @@ def my_data_view(request):
     except Patient.DoesNotExist:
         messages.error(request, 'Patient profile not found.')
         return redirect('pages:dashboard_view')
+    
+    # Auto-expire any consents that have passed their expiry date
+    auto_expire_consents()
+
+    # Find consents expiring within the next 7 days
+    expiring_consents = get_expiring_consents_for_patient(request.user, days_ahead=7)
 
     # Who accessed my data
     access_logs = DecisionLog.objects.filter(
@@ -691,5 +697,6 @@ def my_data_view(request):
         'allow_count':   access_logs.filter(decision='allow').count(),
         'deny_count':    access_logs.filter(decision='deny').count(),
         'redact_count':  access_logs.filter(decision='limited').count(),
+        'expiring_consents': expiring_consents,
     }
     return render(request, 'pages/my_data.html', context)

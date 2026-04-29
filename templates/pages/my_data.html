@@ -2,6 +2,26 @@
 {% load static %}
 
 {% block content %}
+
+{% if expiring_consents %}
+<div class="alert alert-warning alert-dismissible fade show" role="alert">
+    <strong>⚠ Consent Expiry Warning</strong> — 
+    The following consents will expire within 7 days. 
+    Please <a href="{% url 'pages:consent_records' %}" class="alert-link">review your consent records</a> 
+    and contact the data processor if you wish to renew.
+    <ul class="mb-0 mt-2">
+        {% for c in expiring_consents %}
+        <li>
+            <strong>{{ c.data_type }}</strong> 
+            granted to <strong>{{ c.data_processor.get_full_name }}</strong>
+            — expires <strong>{{ c.expiry_date|date:"d M Y" }}</strong>
+        </li>
+        {% endfor %}
+    </ul>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
 <div class="container my-4">
 
     <div class="row mb-4">
