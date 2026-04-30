@@ -205,9 +205,26 @@ def change_user_role_view(request, user_id):
             role = Role.objects.get(name=role_name)
             target.role = role
             target.save(update_fields=["role"])
+            if role.name == "subject":
+                _create_patient(target)
             messages.success(request, f"Role updated to '{role.get_name_display()}' for {target.get_full_name()}.")
         except Role.DoesNotExist:
             messages.error(request, "Invalid role selected.", extra_tags="danger")
+
+    return redirect("users:user_management_view")
+
+@login_required(login_url="users:login_view")
+def change_user_organization_view(request, user_id):
+    if not _require_admin(request):
+        messages.error(request, "Access denied.", extra_tags="danger")
+        return redirect("pages:home")
+
+    if request.method == "POST":
+        target = get_object_or_404(User, pk=user_id)
+        organization_name = (request.POST.get("organization_name") or "").strip()
+        target.organization_name = organization_name
+        target.save(update_fields=["organization_name"])
+        messages.success(request, f"Organisation updated for {target.get_full_name()}.")
 
     return redirect("users:user_management_view")
 

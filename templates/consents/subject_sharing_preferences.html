@@ -4,10 +4,14 @@
 <div class="container py-4">
   <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
     <div>
-      <h2 class="mb-1">Manage sharing preferences</h2>
-      <p class="text-muted mb-0">Choose which role-permissions the subject agrees to share by default. Matching requests will be auto-approved.</p>
+      <h2 class="mb-1">My sharing preferences</h2>
+      <p class="text-muted mb-0">Choose which role-permissions you agree to share by default. Matching requests will be auto-approved.</p>
     </div>
-    <a href="{% url 'patients:patient_medical_timeline' patient.id %}" class="btn btn-outline-secondary">Back</a>
+    {% if is_own_preferences %}
+      <a href="{% url 'pages:my_data' %}" class="btn btn-outline-secondary">Back to My Data</a>
+    {% else %}
+      <a href="{% url 'patients:patient_medical_timeline' patient.id %}" class="btn btn-outline-secondary">Back</a>
+    {% endif %}
   </div>
 
   <form method="post" class="card shadow-sm border-0">
@@ -67,8 +71,12 @@
       {% endif %}
     </div>
     <div class="card-footer bg-white d-flex justify-content-end gap-2">
+      {% if is_own_preferences %}
+      <a href="{% url 'pages:my_data' %}" class="btn btn-outline-secondary">Cancel</a>
+    {% else %}
       <a href="{% url 'patients:patient_medical_timeline' patient.id %}" class="btn btn-outline-secondary">Cancel</a>
-      <button type="submit" class="btn btn-primary">Save preferences</button>
+    {% endif %}
+      <button type="submit" class="btn btn-primary">Save my preferences</button>
     </div>
   </form>
 </div>
