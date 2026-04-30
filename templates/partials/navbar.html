@@ -54,6 +54,13 @@
         </li>
         {% endif %}
 
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'my_subject_sharing_preferences' %}active{% endif %}"
+             href="{% url 'consents:my_subject_sharing_preferences' %}">
+            <i class="bi bi-sliders me-1"></i> My Preferences
+          </a>
+        </li>
+
 
         {% if role == 'regulator' or request.user.is_staff %}
         <li class="nav-item">
