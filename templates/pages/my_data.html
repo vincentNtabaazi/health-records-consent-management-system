@@ -2,12 +2,40 @@
 {% load static %}
 
 {% block content %}
+
+{% if expiring_consents %}
+<div class="alert alert-warning alert-dismissible fade show" role="alert">
+    <strong>⚠ Consent Expiry Warning</strong> — 
+    The following consents will expire within 7 days. 
+    Please <a href="{% url 'pages:consent_records' %}" class="alert-link">review your consent records</a> 
+    and contact the data processor if you wish to renew.
+    <ul class="mb-0 mt-2">
+        {% for c in expiring_consents %}
+        <li>
+            <strong>{{ c.data_type }}</strong> 
+            granted to <strong>{{ c.data_processor.get_full_name }}</strong>
+            — expires <strong>{{ c.expiry_date|date:"d M Y" }}</strong>
+        </li>
+        {% endfor %}
+    </ul>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
 <div class="container my-4">
 
     <div class="row mb-4">
         <div class="col-12">
             <h4 class="fw-semibold">My Data</h4>
-            <p class="text-muted">View who has accessed your data and your current consent status.</p>
+            <p class="text-muted mb-1">View who has accessed your data and your current consent status.</p>
+            <p class="text-muted small">
+                This view provides transparency into how your personal data is accessed and governed under consent policies.
+            </p>
+            <div class="alert alert-light border small mt-3">
+                <strong>Transparency note:</strong>
+                Compliance indicates whether the system correctly followed governance rules.
+                A denied request can still be compliant if access was properly rejected.
+            </div>
         </div>
     </div>
 
@@ -54,7 +82,9 @@
                                 <th>Data Type</th>
                                 <th>Purpose</th>
                                 <th>Decision</th>
+                                <th>Compliance</th>
                                 <th>Consent Used</th>
+                                <th>Reason</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -79,8 +109,24 @@
                                     {% endif %}
                                 </td>
                                 <td>
+                                    {% if log.compliance_status == 'compliant' %}
+                                    <span class="badge bg-success">Compliant</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">Non-Compliant</span>
+                                    {% endif %}
+                                </td>
+                                <td>
                                     {% if log.matched_consent %}
                                     <small class="text-muted">{{ log.matched_consent.consent_id }}</small>
+                                    {% else %}
+                                    <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if log.reason %}
+                                    <small class="text-muted" title="{{ log.reason }}">
+                                        {{ log.reason|truncatechars:60 }}
+                                    </small>
                                     {% else %}
                                     <span class="text-muted">—</span>
                                     {% endif %}
@@ -88,7 +134,7 @@
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="7" class="text-muted text-center">
+                                <td colspan="9" class="text-muted text-center">
                                     No access attempts recorded yet.
                                 </td>
                             </tr>

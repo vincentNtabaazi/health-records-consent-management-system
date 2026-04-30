@@ -1,3 +1,5 @@
+import csv
+from django.http import HttpResponse
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.db.models import Count
@@ -8,6 +10,7 @@ from consents.models import Consent
 from patients.models import MedicalRecord, Patient
 from users.models import User, Role, CustomPermission
 from services.odrl import infer_data_category_from_permission
+from datetime import datetime
 
 
 @login_required(login_url='users:login_view')
@@ -267,8 +270,64 @@ from django.contrib import messages
 from consents.models import AccessRequest, DecisionLog
 from consents.forms import ALLOWED_REQUESTER_ROLES
 from services.policy_engine import evaluate_access
-from services.compliance_checker import check_violations
+from services.compliance_checker import check_violations, get_expiring_consents_for_patient, auto_expire_consents
 
+
+def build_requester_scoped_compliance_report(logs):
+    logs = list(logs)
+
+    total_requests = len(logs)
+    allowed = sum(1 for log in logs if log.decision == 'allow')
+    denied = sum(1 for log in logs if log.decision == 'deny')
+    redacted = sum(1 for log in logs if log.decision == 'limited')
+    violations = []
+
+    for log in logs:
+        access_request = log.access_request
+
+        if log.compliance_status == 'non_compliant':
+            violations.append({
+                'type': 'NON_COMPLIANT_DECISION',
+                'severity': 'HIGH',
+                'requester': access_request.requester,
+                'resource_type': access_request.resource_type,
+                'checked_at': log.checked_at,
+                'details': log.reason,
+            })
+
+        if not access_request.purpose and log.decision == 'allow':
+            violations.append({
+                'type': 'EMPTY_PURPOSE_ALLOWED',
+                'severity': 'MEDIUM',
+                'requester': access_request.requester,
+                'resource_type': access_request.resource_type,
+                'checked_at': log.checked_at,
+                'details': 'Access was allowed even though the purpose was empty.',
+            })
+
+        if log.matched_consent is None and log.decision == 'allow':
+            violations.append({
+                'type': 'ALLOW_WITHOUT_CONSENT',
+                'severity': 'HIGH',
+                'requester': access_request.requester,
+                'resource_type': access_request.resource_type,
+                'checked_at': log.checked_at,
+                'details': 'Access was allowed without a matched consent record.',
+            })
+
+    compliance_rate = 100
+    if total_requests > 0:
+        compliant_count = total_requests - len(violations)
+        compliance_rate = round((compliant_count / total_requests) * 100, 1)
+
+    return {
+        'total_requests': total_requests,
+        'allowed': allowed,
+        'denied': denied,
+        'redacted': redacted,
+        'compliance_rate': compliance_rate,
+        'violations': violations,
+    }
 
 @login_required(login_url='users:login_view')
 def access_request_view(request):
@@ -395,35 +454,203 @@ def access_request_view(request):
     return render(request, 'pages/access_request.html', context)
 
 
+def get_visible_decision_logs_for_user(user):
+    role = getattr(getattr(user, 'role', None), 'name', None)
+    is_global_auditor = user.is_staff or user.is_superuser or role == 'regulator'
+
+    base_logs = DecisionLog.objects.select_related(
+        'access_request',
+        'access_request__requester',
+        'access_request__requester__role',
+        'access_request__patient',
+        'access_request__patient__user',
+        'matched_consent',
+    )
+
+    if is_global_auditor:
+        return base_logs.all()
+
+    if role == 'subject':
+        try:
+            subject_patient = Patient.objects.get(user=user)
+            return base_logs.filter(access_request__patient=subject_patient)
+        except Patient.DoesNotExist:
+            return base_logs.none()
+
+    return base_logs.filter(access_request__requester=user)
+
+
 @login_required(login_url='users:login_view')
 def compliance_dashboard_view(request):
-    patients = Patient.objects.select_related('user').all()
+    role = getattr(getattr(request.user, 'role', None), 'name', None)
+    is_global_auditor = request.user.is_staff or request.user.is_superuser or role == 'regulator'
+
+    if role == 'subject':
+        messages.info(request, 'Patients can view their access transparency report in My Data.')
+        return redirect('pages:my_data')
+
     selected_patient = None
     report = None
+
+    base_logs = DecisionLog.objects.select_related(
+        'access_request',
+        'access_request__requester',
+        'access_request__requester__role',
+        'access_request__patient',
+        'access_request__patient__user',
+        'matched_consent',
+    )
+
+    if is_global_auditor:
+        visible_logs = base_logs.all()
+        patients = Patient.objects.select_related('user').all()
+        dashboard_scope = 'global'
+        scope_description = 'You can inspect all access decisions and compliance events across the system.'
+    elif role == 'subject':
+        try:
+            subject_patient = Patient.objects.get(user=request.user)
+            visible_logs = base_logs.filter(access_request__patient=subject_patient)
+            patients = Patient.objects.filter(id=subject_patient.id).select_related('user')
+            selected_patient = subject_patient
+            dashboard_scope = 'subject'
+            scope_description = 'You can only view access decisions related to your own health data.'
+        except Patient.DoesNotExist:
+            visible_logs = base_logs.none()
+            patients = Patient.objects.none()
+            dashboard_scope = 'subject'
+            scope_description = 'No patient profile is linked to your account.'
+    else:
+        visible_logs = base_logs.filter(access_request__requester=request.user)
+        patient_ids = visible_logs.values_list('access_request__patient_id', flat=True).distinct()
+        patients = Patient.objects.filter(id__in=patient_ids).select_related('user')
+        dashboard_scope = 'requester'
+        scope_description = 'You can only view access decisions for requests submitted by your account.'
 
     patient_id = request.GET.get('patient_id')
     if patient_id:
         try:
-            selected_patient = Patient.objects.get(id=patient_id)
-            report = check_violations(selected_patient)
-        except Patient.DoesNotExist:
-            messages.error(request, 'Patient not found.')
+            candidate_patient = patients.get(id=patient_id)
+            selected_patient = candidate_patient
 
-    recent_logs = DecisionLog.objects.select_related(
-        'access_request',
-        'access_request__requester',
-        'access_request__patient',
-    ).order_by('-checked_at')[:20]
+            if is_global_auditor or role == 'subject':
+                report = check_violations(selected_patient)
+            else:
+                patient_logs = visible_logs.filter(access_request__patient=selected_patient)
+                report = build_requester_scoped_compliance_report(patient_logs)
+
+        except Patient.DoesNotExist:
+            messages.error(request, 'You are not allowed to audit this patient or the patient was not found.')
+
+    if role == 'subject' and selected_patient and report is None:
+        report = check_violations(selected_patient)
+
+    decision_filter = request.GET.get('decision', 'all')
+    compliance_filter = request.GET.get('compliance', 'all')
+
+    filtered_logs = visible_logs
+
+    if decision_filter in ['allow', 'deny', 'limited']:
+        filtered_logs = filtered_logs.filter(decision=decision_filter)
+
+    if compliance_filter in ['compliant', 'non_compliant']:
+        filtered_logs = filtered_logs.filter(compliance_status=compliance_filter)
+
+    recent_logs = filtered_logs.order_by('-checked_at')[:20]
+
+    total_visible_logs = visible_logs.count()
+    allowed_count = visible_logs.filter(decision='allow').count()
+    denied_count = visible_logs.filter(decision='deny').count()
+    redacted_count = visible_logs.filter(decision='limited').count()
+    non_compliant_count = visible_logs.filter(compliance_status='non_compliant').count()
 
     context = {
-        'patients':         patients,
+        'patients': patients,
         'selected_patient': selected_patient,
-        'report':           report,
-        'recent_logs':      recent_logs,
+        'report': report,
+        'recent_logs': recent_logs,
+        'decision_filter': decision_filter,
+        'compliance_filter': compliance_filter,
+        'dashboard_scope': dashboard_scope,
+        'scope_description': scope_description,
+        'is_global_auditor': is_global_auditor,
+        'total_visible_logs': total_visible_logs,
+        'allowed_count': allowed_count,
+        'denied_count': denied_count,
+        'redacted_count': redacted_count,
+        'non_compliant_count': non_compliant_count,
     }
     return render(request, 'pages/compliance_dashboard.html', context)
 
 
+@login_required(login_url='users:login_view')
+def export_audit_logs_csv(request):
+    logs = get_visible_decision_logs_for_user(request.user).order_by('-checked_at')
+
+    decision_filter = request.GET.get('decision', 'all')
+    compliance_filter = request.GET.get('compliance', 'all')
+    patient_id = request.GET.get('patient_id')
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+
+    if decision_filter in ['allow', 'deny', 'limited']:
+        logs = logs.filter(decision=decision_filter)
+
+    if compliance_filter in ['compliant', 'non_compliant']:
+        logs = logs.filter(compliance_status=compliance_filter)
+
+    if patient_id:
+        logs = logs.filter(access_request__patient_id=patient_id)
+
+    if start_date:
+        logs = logs.filter(checked_at__date__gte=start_date)
+
+    if end_date:
+        logs = logs.filter(checked_at__date__lte=end_date)
+
+    response = HttpResponse(content_type='text/csv')
+
+    filename = f'audit_logs_{datetime.now().strftime("%Y%m%d_%H%M")}.csv'
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+    writer = csv.writer(response)
+    writer.writerow(['Generated At', datetime.now().strftime('%d-%b-%Y %H:%M')])
+    writer.writerow(['Export Scope', 'Role-scoped audit logs based on current user permissions'])
+    writer.writerow([])
+
+    writer.writerow([
+        'Checked At',
+        'Requester',
+        'Requester Role',
+        'Patient',
+        'Resource Type',
+        'Purpose',
+        'Action',
+        'Decision',
+        'Compliance Status',
+        'Matched Consent',
+        'Reason',
+    ])
+
+    for log in logs:
+        access_request = log.access_request
+        requester = access_request.requester
+        requester_role = getattr(getattr(requester, 'role', None), 'name', '')
+
+        writer.writerow([
+            log.checked_at.strftime('%d-%b-%Y %H:%M') if log.checked_at else '',
+            requester.username if requester else '',
+            requester_role,
+            str(access_request.patient) if access_request.patient else '',
+            access_request.resource_type,
+            access_request.purpose,
+            access_request.action,
+            log.decision,
+            log.compliance_status,
+            log.matched_consent.consent_id if log.matched_consent else '',
+            log.reason.replace('\n', ' ') if log.reason else '',
+        ])
+
+    return response
 
 
 @login_required(login_url='users:login_view')
@@ -440,6 +667,12 @@ def my_data_view(request):
     except Patient.DoesNotExist:
         messages.error(request, 'Patient profile not found.')
         return redirect('pages:dashboard_view')
+    
+    # Auto-expire any consents that have passed their expiry date
+    auto_expire_consents()
+
+    # Find consents expiring within the next 7 days
+    expiring_consents = get_expiring_consents_for_patient(request.user, days_ahead=7)
 
     # Who accessed my data
     access_logs = DecisionLog.objects.filter(
@@ -464,5 +697,6 @@ def my_data_view(request):
         'allow_count':   access_logs.filter(decision='allow').count(),
         'deny_count':    access_logs.filter(decision='deny').count(),
         'redact_count':  access_logs.filter(decision='limited').count(),
+        'expiring_consents': expiring_consents,
     }
     return render(request, 'pages/my_data.html', context)

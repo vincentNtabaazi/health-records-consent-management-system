@@ -1,3 +1,5 @@
+# services/policy_engine.py
+
 from django.utils import timezone
 
 from patients.models import ConsentPolicy
@@ -96,15 +98,17 @@ def _apply_governance_rules(requester, patient, resource_type, purpose):
     Returns (decision, reason, matched_consent)
 
     Rule priority:
-        1. purpose missing                  -> DENY
-        2. no consent record found          -> DENY
-        3. consent withdrawn                -> DENY
-        4. consent expired                  -> DENY
-        5. consent not active               -> DENY
-        6. role has no permission           -> DENY
-        7. researcher role                  -> ALLOW_WITH_REDACTION
-        8. doctor + treatment purpose       -> ALLOW
-        9. all other valid cases            -> ALLOW
+        1. purpose missing                        -> DENY
+        2. no matching consent found              -> DENY
+           (checks data_type + purpose + active;
+            researcher: any active consent is sufficient)
+        3. consent withdrawn                      -> DENY
+        4. consent expired                        -> DENY
+        5. consent not active                     -> DENY
+        6. role has no permission                 -> DENY
+        7. researcher role                        -> ALLOW_WITH_REDACTION
+        8. processor role + treatment purpose     -> ALLOW (full)
+        9. all other valid cases                  -> ALLOW
     """
     from consents.models import Consent
 
@@ -112,12 +116,13 @@ def _apply_governance_rules(requester, patient, resource_type, purpose):
     if not purpose or purpose.strip() == '':
         return DECISION_DENY, 'Request denied: purpose field is empty.', None
 
-    # Rule 2: check consent record exists
-    # For researcher: any active consent from the patient is sufficient
-    # For others: check consent exists for this specific requester
+    # Resolve role once
     role = getattr(requester, 'role', None)
     role_name = role.name if role else None
 
+    # Rule 2: consent existence check
+    # Researcher: any active consent from the patient is sufficient (anonymised access)
+    # All other roles: consent must match data_type and purpose
     if role_name == 'researcher':
         consent = Consent.objects.filter(
             patient=patient.user,
@@ -126,13 +131,23 @@ def _apply_governance_rules(requester, patient, resource_type, purpose):
     else:
         consent = Consent.objects.filter(
             patient=patient.user,
+            data_processor=requester,
+            data_type=resource_type,
+            purpose=purpose,
             status='active',
         ).order_by('-created_date').first()
 
     if not consent:
-        return DECISION_DENY, 'Request denied: no consent record found for this patient.', None
+        return (
+            DECISION_DENY,
+            (
+                f'Request denied: no active consent found for patient covering '
+                f'resource_type="{resource_type}" and purpose="{purpose}".'
+            ),
+            None,
+        )
 
-    # Rule 3: consent withdrawn
+    # Rule 3: consent withdrawn (defence-in-depth, status filter above should catch this)
     if consent.status == 'withdrawn':
         return (
             DECISION_DENY,
@@ -149,16 +164,15 @@ def _apply_governance_rules(requester, patient, resource_type, purpose):
             consent,
         )
 
-    # Rule 5: consent not active
+    # Rule 5: consent not active (catches 'pending', 'denied', etc.)
     if consent.status != 'active':
         return (
             DECISION_DENY,
-            f'Request denied: consent {consent.consent_id} status is {consent.status}.',
+            f'Request denied: consent {consent.consent_id} status is "{consent.status}".',
             consent,
         )
 
-    # Rule 6: check role permission
-    role = getattr(requester, 'role', None)
+    # Rule 6: role must have the relevant RolePermission
     if not role:
         return DECISION_DENY, 'Request denied: requester has no assigned role.', consent
 
@@ -170,27 +184,30 @@ def _apply_governance_rules(requester, patient, resource_type, purpose):
     if not has_permission:
         return (
             DECISION_DENY,
-            f'Request denied: role "{role.name}" does not have permission to read {resource_type}.',
-            consent,
-        )
-
-    # Rule 7: researcher -> redacted access only
-    if role.name == 'researcher':
-        return (
-            DECISION_ALLOW_REDACTED,
             (
-                f'Access granted with redaction: researcher role may only access '
-                f'anonymised {resource_type} data for purpose "{purpose}".'
+                f'Request denied: role "{role_name}" does not have permission '
+                f'to read "{resource_type}".'
             ),
             consent,
         )
 
-    # Rule 8: doctor + treatment -> full access
-    if role.name == 'processor' and purpose == 'treatment':
+    # Rule 7: researcher -> redacted/anonymised access only
+    if role_name == 'researcher':
+        return (
+            DECISION_ALLOW_REDACTED,
+            (
+                f'Access granted with redaction: researcher role may only receive '
+                f'anonymised "{resource_type}" data for purpose "{purpose}".'
+            ),
+            consent,
+        )
+
+    # Rule 8: processor (doctor) + treatment purpose -> full access
+    if role_name == 'processor' and purpose == 'treatment':
         return (
             DECISION_ALLOW,
             (
-                f'Full access granted: doctor role with treatment purpose '
+                f'Full access granted: processor role with treatment purpose '
                 f'matched consent {consent.consent_id}.'
             ),
             consent,
@@ -201,7 +218,7 @@ def _apply_governance_rules(requester, patient, resource_type, purpose):
         DECISION_ALLOW,
         (
             f'Access granted: active consent {consent.consent_id} covers '
-            f'role "{role.name}" for purpose "{purpose}".'
+            f'role "{role_name}" for purpose "{purpose}".'
         ),
         consent,
     )
@@ -219,17 +236,14 @@ def evaluate_access(requester, patient, resource_type, purpose, action='read'):
     """
     from services.audit_logger import create_access_request, write_decision_log
 
-    # Step 1: record the request
     access_request = create_access_request(
         requester, patient, resource_type, purpose, action
     )
 
-    # Step 2: apply governance rules
     decision, reason, matched_consent = _apply_governance_rules(
         requester, patient, resource_type, purpose
     )
 
-    # Step 3: write decision log
     log = write_decision_log(access_request, decision, reason, matched_consent)
 
     return log
