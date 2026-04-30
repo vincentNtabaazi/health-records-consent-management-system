@@ -127,3 +127,6 @@ AUTH_USER_MODEL = "users.User"
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
