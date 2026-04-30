@@ -3,7 +3,7 @@ from collections import OrderedDict
 from django import forms
 
 from consents.models import Consent
-from patients.models import PatientPermission
+from patients.models import Patient, PatientPermission
 from users.models import RolePermission
 from services.odrl import group_permissions_by_category, infer_data_category_from_permission, prettify_permission
 
@@ -52,6 +52,44 @@ class ConsentRequestForm(forms.ModelForm):
         if invalid:
             raise forms.ValidationError('You selected permissions that are not allowed for your role.')
         return [int(item) for item in selected]
+
+
+class OrganizationConsentRequestForm(ConsentRequestForm):
+    """Request the same consent from every subject in one organisation."""
+
+    organization_name = forms.ChoiceField(
+        label='Subject organisation',
+        required=True,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
+
+    class Meta(ConsentRequestForm.Meta):
+        fields = ['organization_name', 'purpose', 'expiry_date', 'notes']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        organizations = (
+            Patient.objects
+            .select_related('user')
+            .exclude(user__organization_name__isnull=True)
+            .exclude(user__organization_name__exact='')
+            .values_list('user__organization_name', flat=True)
+            .distinct()
+            .order_by('user__organization_name')
+        )
+        self.fields['organization_name'].choices = [('', 'Select an organisation')] + [
+            (organization, organization)
+            for organization in organizations
+        ]
+
+    def clean_organization_name(self):
+        organization_name = (self.cleaned_data.get('organization_name') or '').strip()
+        if not organization_name:
+            raise forms.ValidationError('Please choose a subject organisation.')
+        has_subjects = Patient.objects.filter(user__organization_name=organization_name).exists()
+        if not has_subjects:
+            raise forms.ValidationError('No subjects were found in this organisation.')
+        return organization_name
 
 
 class SubjectSharingPreferencesForm(forms.Form):

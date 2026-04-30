@@ -3,10 +3,16 @@ import json
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
+from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 
-from consents.forms import ConsentRequestForm, SubjectSharingPreferencesForm, ALLOWED_REQUESTER_ROLES
+from consents.forms import (
+    ALLOWED_REQUESTER_ROLES,
+    ConsentRequestForm,
+    OrganizationConsentRequestForm,
+    SubjectSharingPreferencesForm,
+)
 from consents.models import Consent
 from patients.models import MedicalRecord, Patient, PatientPermission
 from users.models import CustomPermission
@@ -21,19 +27,9 @@ def _can_request(user):
 
 
 def _can_review(user, consent):
-    """
-    Check if user can review/approve this consent.
-    Note: For GRANTED_BY_SUBJECT, only the data_processor (not the subject) can approve.
-    """
     if not user.is_authenticated:
         return False
     if user.is_staff or user.is_superuser:
-        return True
-    # Don't allow subject to review their own granted consent - only data processor can approve
-    if consent.patient_id == user.id and consent.consent_type == 'GRANTED_BY_SUBJECT':
-        return False
-    # Allow data processor (researcher/processor/regulator/agent) to review GRANTED_BY_SUBJECT
-    if consent.data_processor_id == user.id and consent.consent_type == 'GRANTED_BY_SUBJECT':
         return True
     if consent.patient_id == user.id:
         return True
@@ -44,15 +40,12 @@ def _can_review(user, consent):
 
 
 def _can_manage_subject_preferences(user, patient):
+    """Only the data subject can manage their own sharing preferences."""
     if not user.is_authenticated:
         return False
-    if user.is_staff or user.is_superuser:
-        return True
-    if patient.user_id == user.id:
-        return True
-    if patient.user.delegated_to_id == user.id:
-        return True
-    return False
+
+    role_name = getattr(getattr(user, 'role', None), 'name', None)
+    return role_name == 'subject' and patient.user_id == user.id
 
 
 
@@ -62,6 +55,37 @@ def _subject_preconsented_permission_ids(patient, role):
         .filter(patient=patient, role_permission__role=role)
         .values_list('role_permission__permission_id', flat=True)
     )
+
+
+
+def _create_consent_request(patient, requester, cleaned_data, permission_ids, permissions, categories):
+    """Create one consent request and auto-approve it when the subject pre-consented."""
+    consent = Consent.objects.create(
+        patient=patient.user,
+        data_processor=requester,
+        data_type=', '.join(categories),
+        purpose=cleaned_data['purpose'],
+        expiry_date=cleaned_data.get('expiry_date'),
+        notes=cleaned_data.get('notes') or '',
+        requested_permissions=permission_ids,
+        consent_type=Consent.CONSENT_TYPE_MANUAL_REVIEW,
+    )
+    consent.build_request_policy()
+    consent.save(update_fields=['odrl_request'])
+
+    preconsented_permission_ids = _subject_preconsented_permission_ids(patient, requester.role)
+    requested_permission_id_set = set(permission_ids)
+    matched_count = len(requested_permission_id_set & preconsented_permission_ids)
+
+    auto_approved = False
+    if requested_permission_id_set and requested_permission_id_set.issubset(preconsented_permission_ids):
+        consent.approve(
+            permission_ids,
+            approval_path=Consent.CONSENT_TYPE_SUBJECT_PREFERENCE,
+        )
+        auto_approved = True
+
+    return consent, auto_approved, matched_count
 
 
 @login_required(login_url='users:login_view')
@@ -79,70 +103,21 @@ def request_consent_view(request, patient_id):
             permissions = list(CustomPermission.objects.filter(id__in=permission_ids))
             categories = sorted({infer_data_category_from_permission(perm.name) for perm in permissions})
 
-            # Check for duplicate consent (same logic as grant consent)
-            expiry_date_obj = form.cleaned_data.get('expiry_date')
-            existing_consents = Consent.objects.filter(
-                patient=patient.user,
-                data_processor=request.user,
-                expiry_date=expiry_date_obj,
-                status__in=['pending', 'active']
+            consent, auto_approved, matched_count = _create_consent_request(
+                patient=patient,
+                requester=request.user,
+                cleaned_data=form.cleaned_data,
+                permission_ids=permission_ids,
+                permissions=permissions,
+                categories=categories,
             )
 
-            # Collect ALL permissions from ALL existing consents
-            all_existing_perms = set()
-            for c in existing_consents:
-                all_existing_perms.update(str(p) for p in c.requested_permissions)
-
-            # Check if ALL requested permissions are already covered
-            permission_ids_as_str = [str(pid) for pid in permission_ids]
-            input_perms_set = set(permission_ids_as_str)
-            existing_consent = None
-            if input_perms_set.issubset(all_existing_perms):
-                # Already have consent covering these permissions
-                existing_consent = existing_consents.first()
-
-            # If duplicate and no confirmation, show confirmation page
-            if existing_consent and not request.POST.get('confirm_create'):
-                context = {
-                    'patient': patient,
-                    'form': form,
-                    'grouped_permissions': form.grouped_permissions,
-                    'selected_permission_ids': {str(value) for value in request.POST.getlist('permission_ids')},
-                    'preconsented_permission_ids': {str(item) for item in preconsented_permission_ids},
-                    'duplicate_warning': True,
-                    'existing_consent': existing_consent,
-                    'confirm_data': {
-                        'patient_id': patient_id,
-                        'permission_ids': permission_ids,
-                        'purpose': form.cleaned_data.get('purpose'),
-                        'expiry_date': form.cleaned_data.get('expiry_date'),
-                        'notes': form.cleaned_data.get('notes'),
-                    }
-                }
-                return render(request, 'consents/request_consent.html', context)
-
-            consent = form.save(commit=False)
-            consent.patient = patient.user
-            consent.data_processor = request.user
-            consent.data_type = ', '.join(categories)
-            consent.requested_permissions = permission_ids
-            consent.consent_type = Consent.CONSENT_TYPE_MANUAL_REVIEW
-            consent.save()
-            consent.build_request_policy()
-            consent.save(update_fields=['odrl_request'])
-
-            if set(permission_ids).issubset(preconsented_permission_ids):
-                consent.approve(
-                    permission_ids,
-                    approval_path=Consent.CONSENT_TYPE_SUBJECT_PREFERENCE,
-                )
+            if auto_approved:
                 messages.success(request, 'This request matched the subject\'s sharing preferences and was approved automatically.')
+            elif matched_count:
+                messages.info(request, f'{matched_count} requested permission(s) already match the subject\'s sharing preferences. The remaining permissions are waiting for review.')
             else:
-                matched_count = len(set(permission_ids) & preconsented_permission_ids)
-                if matched_count:
-                    messages.info(request, f'{matched_count} requested permission(s) already match the subject\'s sharing preferences. The remaining permissions are waiting for review.')
-                else:
-                    messages.success(request, 'Consent request created and sent to the subject for review.')
+                messages.success(request, 'Consent request created and sent to the subject for review.')
 
             return redirect('consents:consent_details', consent_id=consent.id)
     else:
@@ -159,19 +134,97 @@ def request_consent_view(request, patient_id):
 
 
 @login_required(login_url='users:login_view')
+def request_organization_consent_view(request):
+    if not _can_request(request.user):
+        raise PermissionDenied('Your role cannot request consent.')
+
+    initial_organization = (
+        request.GET.get('organization_name')
+        or request.GET.get('organization')
+        or ''
+    )
+
+    if request.method == 'POST':
+        form = OrganizationConsentRequestForm(request.POST, requester=request.user)
+        if form.is_valid():
+            organization_name = form.cleaned_data['organization_name']
+            permission_ids = form.cleaned_data['permission_ids']
+            permissions = list(CustomPermission.objects.filter(id__in=permission_ids))
+            categories = sorted({infer_data_category_from_permission(perm.name) for perm in permissions})
+            patients = list(
+                Patient.objects
+                .select_related('user')
+                .filter(user__organization_name=organization_name)
+                .order_by('user__last_name', 'user__first_name', 'id')
+            )
+
+            created_count = 0
+            auto_approved_count = 0
+            pending_count = 0
+            partial_preference_count = 0
+
+            with transaction.atomic():
+                for patient in patients:
+                    _, auto_approved, matched_count = _create_consent_request(
+                        patient=patient,
+                        requester=request.user,
+                        cleaned_data=form.cleaned_data,
+                        permission_ids=permission_ids,
+                        permissions=permissions,
+                        categories=categories,
+                    )
+                    created_count += 1
+                    if auto_approved:
+                        auto_approved_count += 1
+                    else:
+                        pending_count += 1
+                        if matched_count:
+                            partial_preference_count += 1
+
+            messages.success(
+                request,
+                (
+                    f'Created {created_count} consent request(s) for organisation "{organization_name}". '
+                    f'{auto_approved_count} auto-approved, {pending_count} waiting for subject review.'
+                ),
+            )
+            if partial_preference_count:
+                messages.info(
+                    request,
+                    f'{partial_preference_count} pending request(s) had some permissions already covered by subject sharing preferences.'
+                )
+            return redirect('pages:consent_records')
+    else:
+        form = OrganizationConsentRequestForm(
+            requester=request.user,
+            initial={'organization_name': initial_organization},
+        )
+
+    selected_organization = (
+        request.POST.get('organization_name')
+        if request.method == 'POST'
+        else initial_organization
+    )
+    organization_subject_count = 0
+    if selected_organization:
+        organization_subject_count = Patient.objects.filter(user__organization_name=selected_organization).count()
+
+    context = {
+        'form': form,
+        'grouped_permissions': form.grouped_permissions,
+        'selected_permission_ids': {str(value) for value in request.POST.getlist('permission_ids')},
+        'selected_organization': selected_organization,
+        'organization_subject_count': organization_subject_count,
+    }
+    return render(request, 'consents/request_organization_consent.html', context)
+
+
+@login_required(login_url='users:login_view')
 def review_pending_consents_view(request):
-    # Show pending consents where user is either:
-    # - The patient (subject) reviewing requests sent to them
-    # - The data_processor (researcher/processor/regulator/agent) reviewing consent offered to them
     pending_consents = (
         Consent.objects
         .select_related('patient', 'data_processor', 'data_processor__role')
-        .filter(
-            Q(patient=request.user) |
-            Q(data_processor=request.user) |
-            Q(patient__delegated_to=request.user),
-            status='pending'
-        )
+        .filter(Q(patient=request.user) | Q(patient__delegated_to=request.user), status='pending')
         .order_by('-created_date')
     )
     return render(request, 'consents/review_consents.html', {'pending_consents': pending_consents})
@@ -199,26 +252,20 @@ def approve_consent_view(request, consent_id):
     if not selected_permission_ids and not request.POST.get('review_submitted'):
         selected_permission_ids = list(consent.requested_permissions)
 
-    # Convert requested_permissions to integers for comparison (they are stored as strings)
-    requested_perms_as_int = set(int(p) for p in consent.requested_permissions)
     selected_permission_ids = [
         permission_id
         for permission_id in selected_permission_ids
-        if permission_id in requested_perms_as_int
+        if permission_id in set(consent.requested_permissions)
     ]
 
     if selected_permission_ids:
-        # Convert requested_permissions to integers for comparison
-        requested_perms_as_int = set(int(p) for p in consent.requested_permissions)
-        selected_perms_set = set(selected_permission_ids)
-
-        if selected_perms_set == requested_perms_as_int:
+        if set(selected_permission_ids) == set(consent.requested_permissions):
             approval_path = Consent.CONSENT_TYPE_MANUAL_REVIEW
         else:
             approval_path = Consent.CONSENT_TYPE_PARTIAL_APPROVAL
 
         consent.approve(selected_permission_ids, approval_path=approval_path)
-        if selected_perms_set == requested_perms_as_int:
+        if set(selected_permission_ids) == set(consent.requested_permissions):
             messages.success(request, 'Consent approved.')
         else:
             messages.success(request, 'Consent partially approved. Only the selected permissions were granted.')
@@ -260,29 +307,54 @@ def withdraw_consent_view(request, consent_id):
     return redirect('consents:consent_details', consent_id=consent.id)
 
 
-@login_required(login_url='users:login_view')
-def subject_sharing_preferences_view(request, patient_id):
-    patient = get_object_or_404(Patient.objects.select_related('user'), pk=patient_id)
+def _render_subject_sharing_preferences(request, patient, redirect_to='patients:patient_medical_timeline'):
     if not _can_manage_subject_preferences(request.user, patient):
-        raise PermissionDenied('You cannot manage sharing preferences for this subject.')
+        raise PermissionDenied('Only the subject can manage their own sharing preferences.')
 
     if request.method == 'POST':
         form = SubjectSharingPreferencesForm(request.POST, patient=patient)
         if form.is_valid():
             form.save()
             messages.success(request, 'Sharing preferences updated. Future requests will be checked against these permissions automatically.')
+            if redirect_to == 'pages:my_data':
+                return redirect('pages:my_data')
             return redirect('patients:patient_medical_timeline', patient_id=patient.id)
     else:
         form = SubjectSharingPreferencesForm(patient=patient)
 
-    selected_role_permission_ids = {str(value) for value in request.POST.getlist('role_permission_ids')} if request.method == 'POST' else {str(value) for value in form.initial.get('role_permission_ids', [])}
+    selected_role_permission_ids = (
+        {str(value) for value in request.POST.getlist('role_permission_ids')}
+        if request.method == 'POST'
+        else {str(value) for value in form.initial.get('role_permission_ids', [])}
+    )
 
     return render(request, 'consents/subject_sharing_preferences.html', {
         'patient': patient,
         'form': form,
         'grouped_role_permissions': form.grouped_role_permissions,
         'selected_role_permission_ids': selected_role_permission_ids,
+        'is_own_preferences': redirect_to == 'pages:my_data',
     })
+
+
+@login_required(login_url='users:login_view')
+def my_subject_sharing_preferences_view(request):
+    role_name = getattr(getattr(request.user, 'role', None), 'name', None)
+    if role_name != 'subject':
+        raise PermissionDenied('Only subjects can manage sharing preferences.')
+
+    patient = Patient.objects.select_related('user').filter(user=request.user).first()
+    if not patient:
+        messages.error(request, 'No subject profile was found for your account yet.')
+        return redirect('pages:my_data')
+
+    return _render_subject_sharing_preferences(request, patient, redirect_to='pages:my_data')
+
+
+@login_required(login_url='users:login_view')
+def subject_sharing_preferences_view(request, patient_id):
+    patient = get_object_or_404(Patient.objects.select_related('user'), pk=patient_id)
+    return _render_subject_sharing_preferences(request, patient)
 
 
 @login_required(login_url='users:login_view')
@@ -332,9 +404,7 @@ def consent_details(request, consent_id):
         pk=consent_id,
     )
 
-    # Allow view if: can review OR is data processor OR is patient (own consent)
-    can_view = _can_review(request.user, consent) or request.user.id == consent.data_processor_id or request.user.id == consent.patient_id
-    if not can_view:
+    if not _can_review(request.user, consent) and request.user.id != consent.data_processor_id:
         raise PermissionDenied('You cannot view this consent.')
 
     patient_profile = get_object_or_404(Patient.objects.select_related('user'), user=consent.patient)

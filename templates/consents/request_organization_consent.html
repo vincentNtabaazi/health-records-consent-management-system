@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-3">
+    <div>
+      <h2 class="mb-1">Request organisation consent</h2>
+      <p class="text-muted mb-0">
+        Create the same consent request for every subject in the selected organisation.
+      </p>
+    </div>
+    <a href="{% url 'pages:data_subjects' %}" class="btn btn-outline-secondary">Back to subjects</a>
+  </div>
+
+  <form method="post" class="card shadow-sm border-0">
+    {% csrf_token %}
+    <div class="card-body p-4">
+      <div class="alert alert-light border mb-4">
+        This creates one consent request per subject in the organisation. Each request is still reviewed by the matching subject unless all selected permissions already match that subject's sharing preferences, in which case that subject's request is auto-approved.
+      </div>
+
+      <div class="row g-4">
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Subject organisation</label>
+          {{ form.organization_name }}
+          {% if selected_organization %}
+            <div class="form-text">
+              {{ organization_subject_count }} subject{{ organization_subject_count|pluralize }} currently belong to this organisation.
+            </div>
+          {% endif %}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Expiry date</label>
+          {{ form.expiry_date }}
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-semibold">Purpose</label>
+          {{ form.purpose }}
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-semibold">Notes</label>
+          {{ form.notes }}
+        </div>
+      </div>
+
+      <hr class="my-4">
+
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div>
+          <h5 class="mb-1">Choose permissions</h5>
+          <p class="text-muted mb-0">Your role can only request permissions configured for it.</p>
+        </div>
+        <span class="badge bg-light text-dark border">The same permission set will be requested from every subject in the organisation.</span>
+      </div>
+
+      {% if grouped_permissions %}
+        <div class="row g-3">
+          {% for category, perms in grouped_permissions.items %}
+            <div class="col-lg-4 col-md-6">
+              <div class="card h-100 border-0 shadow-sm bg-light">
+                <div class="card-header bg-transparent border-0 fw-semibold text-capitalize">{{ category }}</div>
+                <div class="card-body">
+                  {% for perm in perms %}
+                    <div class="form-check mb-2">
+                      <input class="form-check-input"
+                             type="checkbox"
+                             name="permission_ids"
+                             id="perm_{{ perm.id }}"
+                             value="{{ perm.id }}"
+                             {% if perm.id|stringformat:'s' in selected_permission_ids %}checked{% endif %}>
+                      <label class="form-check-label" for="perm_{{ perm.id }}">
+                        {{ perm.label }}
+                      </label>
+                    </div>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="alert alert-warning mb-0">No requestable permissions are configured for your role yet.</div>
+      {% endif %}
+
+      {% if form.errors %}
+        <div class="alert alert-danger mt-3 mb-0">
+          {{ form.errors }}
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="card-footer bg-white d-flex justify-content-end gap-2">
+      <a href="{% url 'pages:data_subjects' %}" class="btn btn-outline-secondary">Cancel</a>
+      <button type="submit" class="btn btn-primary">
+        <i class="bi bi-send me-1"></i> Send requests to organisation
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}
