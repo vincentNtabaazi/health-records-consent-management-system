@@ -1,3 +1,5 @@
+from django.utils import timezone
+from datetime import timedelta
 from services.audit_logger import get_audit_trail
 
 DECISION_ALLOW          = 'allow'
@@ -105,3 +107,42 @@ def check_violations(patient):
         'violation_count': len(violations),
         'violations':      violations,
     }
+
+
+def get_expiring_consents_for_patient(patient_user, days_ahead=7):
+    """
+    Return active consents belonging to patient_user that expire
+    within the next `days_ahead` days.
+    Used to warn patients before their consent lapses.
+    """
+    from consents.models import Consent
+
+    now    = timezone.now().date()
+    cutoff = now + timedelta(days=days_ahead)
+
+    return Consent.objects.filter(
+        patient=patient_user,
+        status='active',
+        expiry_date__gte=now,
+        expiry_date__lte=cutoff,
+    ).select_related('data_processor').order_by('expiry_date')
+
+
+def auto_expire_consents():
+    """
+    Automatically mark consents as 'expired' if their expiry_date
+    has passed but their status is still 'active'.
+
+    Enforces the Storage Limitation principle (GDPR Article 5(1)(e)).
+    Returns the number of consents updated.
+    """
+    from consents.models import Consent
+
+    today = timezone.now().date()
+
+    expired_count = Consent.objects.filter(
+        status='active',
+        expiry_date__lt=today,
+    ).update(status='expired')
+
+    return expired_count

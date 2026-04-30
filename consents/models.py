@@ -67,7 +67,7 @@ class Consent(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.consent_id:
-            timestamp = timezone.now().strftime('%Y%m%d%H%M%S')
+            timestamp = timezone.now().strftime('%Y%m%d%H%M%S%f')
             self.consent_id = f"CONSENT-{self.patient_id}-{self.data_processor_id}-{timestamp}"
         super().save(*args, **kwargs)
 

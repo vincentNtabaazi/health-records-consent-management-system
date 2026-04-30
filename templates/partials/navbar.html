@@ -20,7 +20,7 @@
 
     <div class="collapse navbar-collapse" id="mainNavbar">
       <ul class="navbar-nav me-auto mb-2 mb-lg-0 ms-lg-3">
-        {% with role=request.user.role.name %}
+        {% with role=request.user.role.name|default:'' %}
 
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'dashboard_view' %}active{% endif %}"
@@ -29,20 +29,23 @@
           </a>
         </li>
 
+        {% if role == 'subject' or role == 'processor' or role == 'regulator' or role == 'insurance_agent' or request.user.is_staff or request.user.is_superuser %}
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'consent_records' %}active{% endif %}"
-             href="{% url 'pages:consent_records' %}">
+            href="{% url 'pages:consent_records' %}">
             <i class="bi bi-check2-square me-1"></i> Consent Records
           </a>
         </li>
+        {% endif %}
 
         {% if role == 'subject' %}
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'my_data' %}active{% endif %}"
-             href="{% url 'pages:my_data' %}">
+            href="{% url 'pages:my_data' %}">
             <i class="bi bi-person-lines-fill me-1"></i> My Data
           </a>
         </li>
+        {% endif %}
 
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'medical_records' %}active{% endif %}"
@@ -93,7 +96,27 @@
             <i class="bi bi-shield-check me-1"></i> Access Request
           </a>
         </li>
-        {% endif %}
+       {% endif %}
+
+       {% if role == 'processor' or role == 'researcher' or role == 'insurance_agent' %}
+       <li class="nav-item">
+         <a class="nav-link {% if request.resolver_match.url_name == 'access_history' %}active{% endif %}"
+            href="{% url 'pages:access_history' %}">
+          <i class="bi bi-clock-history me-1"></i> Access History
+         </a>
+       </li>
+       {% endif %}
+
+{% if role == 'processor' or role == 'researcher' or role == 'insurance_agent' or role == 'regulator' or request.user.is_staff or request.user.is_superuser %}
+<li class="nav-item">
+  <a class="nav-link {% if request.resolver_match.url_name == 'compliance_dashboard' %}active{% endif %}"
+     href="{% url 'pages:compliance_dashboard' %}">
+    <i class="bi bi-clipboard-data me-1"></i> Compliance
+  </a>
+</li>
+{% endif %}
+
+
 
         {% if role == 'processor' or role == 'researcher' or role == 'insurance_agent' %}
         <li class="nav-item">
@@ -104,14 +127,7 @@
         </li>
         {% endif %}
 
-        {% if role == 'regulator' or request.user.is_staff %}
-        <li class="nav-item">
-          <a class="nav-link {% if request.resolver_match.url_name == 'compliance_dashboard' %}active{% endif %}"
-             href="{% url 'pages:compliance_dashboard' %}">
-            <i class="bi bi-clipboard-data me-1"></i> Compliance
-          </a>
-        </li>
-        {% endif %}
+
 
         {% if request.user.is_staff or request.user.is_superuser %}
         <li class="nav-item dropdown">
@@ -145,11 +161,13 @@
       </ul>
 
       <ul class="navbar-nav align-items-lg-center mb-2 mb-lg-0">
+        {% if role == 'processor' or role == 'regulator' or request.user.is_staff or request.user.is_superuser %}
         <li class="nav-item me-2">
           <a href="{% url 'consents:review_pending_consents' %}" class="btn btn-primary btn-sm">
             <i class="bi bi-plus-lg me-1"></i> Review Consents
           </a>
         </li>
+        {% endif %}
 
         {% if request.user.is_authenticated %}
         <li class="nav-item dropdown">
