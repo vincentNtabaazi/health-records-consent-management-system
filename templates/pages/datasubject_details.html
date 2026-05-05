@@ -29,7 +29,7 @@
                     <div class="d-flex gap-2">
                     {% if can_manage_sharing_preferences %}
                         <a class="btn btn-outline-primary btn-sm"
-                           href="{% url 'consents:subject_sharing_preferences' patient.id %}">
+                           href="{% url 'consents:my_subject_sharing_preferences' %}">
                             <i class="bi bi-sliders me-1"></i> Sharing Preferences
                         </a>
                     {% endif %}
@@ -255,7 +255,7 @@
                         <div class="d-flex justify-content-between align-items-center mt-4 mb-3">
                             <h6 class="text-muted text-uppercase small mb-0">Subject Sharing Preferences</h6>
                             {% if can_manage_sharing_preferences %}
-                                <a class="btn btn-sm btn-outline-primary" href="{% url 'consents:subject_sharing_preferences' patient.id %}">Edit</a>
+                                <a class="btn btn-sm btn-outline-primary" href="{% url 'consents:my_subject_sharing_preferences' %}">Edit</a>
                             {% endif %}
                         </div>
                         {% if roles %}
@@ -320,7 +320,7 @@
                 <div class="d-grid gap-2 mb-3">
                     {% if can_manage_sharing_preferences %}
                         <a class="btn btn-outline-primary"
-                           href="{% url 'consents:subject_sharing_preferences' patient.id %}">
+                           href="{% url 'consents:my_subject_sharing_preferences' %}">
                             <i class="bi bi-sliders me-2"></i> Manage Sharing Preferences
                         </a>
                     {% endif %}

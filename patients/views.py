@@ -41,6 +41,10 @@ def patient_medical_timeline(request, patient_id):
         or request.user.id == patient.user_id
         or patient.user.delegated_to_id == request.user.id
     )
+    can_manage_sharing_preferences = (
+        getattr(getattr(request.user, 'role', None), 'name', None) == 'subject'
+        and request.user.id == patient.user_id
+    )
 
     if can_review_all_patient_requests:
         medical_records = list(all_medical_records)
@@ -101,5 +105,5 @@ def patient_medical_timeline(request, patient_id):
         'role_permission_matrix': role_permission_matrix,
         'pending_consents': pending_consents,
         'active_consents': active_consents,
-        'can_manage_sharing_preferences': can_review_all_patient_requests,
+        'can_manage_sharing_preferences': can_manage_sharing_preferences,
     })

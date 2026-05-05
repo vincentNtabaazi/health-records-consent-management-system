@@ -32,28 +32,33 @@
         {% if role == 'subject' or role == 'processor' or role == 'regulator' or role == 'insurance_agent' or request.user.is_staff or request.user.is_superuser %}
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'consent_records' %}active{% endif %}"
-             href="{% url 'pages:consent_records' %}">
+            href="{% url 'pages:consent_records' %}">
             <i class="bi bi-check2-square me-1"></i> Consent Records
           </a>
         </li>
         {% endif %}
 
-
-        {% if role  == 'subject' %}
+        {% if role == 'subject' %}
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'my_data' %}active{% endif %}"
-              href="{% url 'pages:my_data' %}">
+            href="{% url 'pages:my_data' %}">
             <i class="bi bi-person-lines-fill me-1"></i> My Data
           </a>
         </li>
+
         <li class="nav-item">
-          <a class="nav-link {% if request.resolver_match.url_name == 'patient_medical_timeline' %}active{% endif %}"
-              href="{% url 'patients:patient_medical_timeline' subject_patient_id %}">
+          <a class="nav-link {% if request.resolver_match.url_name == 'medical_records' %}active{% endif %}"
+             href="{% url 'pages:medical_records' %}">
             <i class="bi bi-file-earmark-medical me-1"></i> My Medical Records
           </a>
         </li>
-        {% endif %}
 
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'my_subject_sharing_preferences' %}active{% endif %}"
+             href="{% url 'consents:my_subject_sharing_preferences' %}">
+            <i class="bi bi-sliders me-1"></i> My Preferences
+          </a>
+        </li>
 
         {% if role == 'regulator' or request.user.is_staff %}
         <li class="nav-item">
@@ -64,7 +69,7 @@
         </li>
         {% endif %}
 
-        {% if role == 'processor' or role == 'regulator' or role == 'insurance_agent' or role == 'researcher' or request.user.is_staff %}
+        {% if role == 'processor' or role == 'researcher' or role == 'regulator' or role == 'insurance_agent' or request.user.is_staff %}
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'data_subjects' %}active{% endif %}"
              href="{% url 'pages:data_subjects' %}">
@@ -89,12 +94,21 @@
             <i class="bi bi-shield-check me-1"></i> Access Request
           </a>
         </li>
-        {% endif %}
+       {% endif %}
+
+       {% if role == 'processor' or role == 'researcher' or role == 'insurance_agent' %}
+       <li class="nav-item">
+         <a class="nav-link {% if request.resolver_match.url_name == 'access_history' %}active{% endif %}"
+            href="{% url 'pages:access_history' %}">
+          <i class="bi bi-clock-history me-1"></i> Access History
+         </a>
+       </li>
+       {% endif %}
 
         {% if role == 'processor' or role == 'researcher' or role == 'insurance_agent' or role == 'regulator' or request.user.is_staff or request.user.is_superuser %}
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'compliance_dashboard' %}active{% endif %}"
-             href="{% url 'pages:compliance_dashboard' %}">
+            href="{% url 'pages:compliance_dashboard' %}">
             <i class="bi bi-clipboard-data me-1"></i> Compliance
           </a>
         </li>
@@ -144,7 +158,7 @@
           </ul>
         </li>
         {% endif %}
-
+        {% endif %}
         {% endwith %}
       </ul>
 

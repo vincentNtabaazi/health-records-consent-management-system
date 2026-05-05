@@ -2,70 +2,163 @@
 {% load static %}
 
 {% block content %}
-<!-- Main content area -->
 <div class="container-fluid py-4 bg-light">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
+        <div>
+            <h2 class="mb-1">Data Subjects</h2>
+            <p class="text-muted mb-0">
+                Search subjects by name/email, filter by organisation, or request consent from every subject in one organisation.
+            </p>
+        </div>
+        {% if request.user.is_authenticated and request.user.role and request.user.role.name != 'subject' %}
+            <a class="btn btn-primary" href="{% url 'consents:request_organization_consent' %}{% if selected_organization %}?organization={{ selected_organization|urlencode }}{% endif %}">
+                <i class="bi bi-building-add me-1"></i> Request Organisation Consent
+            </a>
+        {% endif %}
+    </div>
+
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-lg-5 col-md-6">
+                    <label class="form-label fw-semibold">Search subject</label>
+                    <input type="text"
+                           name="q"
+                           value="{{ search_query }}"
+                           class="form-control"
+                           placeholder="Search by first name, last name, username, or email">
+                </div>
+                <div class="col-lg-4 col-md-6">
+                    <label class="form-label fw-semibold">Organisation</label>
+                    <select name="organization" class="form-select">
+                        <option value="">All organisations</option>
+                        {% for organization in organizations %}
+                            <option value="{{ organization.user__organization_name }}"
+                                    {% if selected_organization == organization.user__organization_name %}selected{% endif %}>
+                                {{ organization.user__organization_name }} ({{ organization.subject_count }})
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-lg-3 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary flex-fill">
+                        <i class="bi bi-search me-1"></i> Search
+                    </button>
+                    <a href="{% url 'pages:data_subjects' %}" class="btn btn-outline-secondary">Reset</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if organizations %}
+        <div class="row g-3 mb-4">
+            {% for organization in organizations %}
+                <div class="col-xl-3 col-lg-4 col-md-6">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start gap-2">
+                                <div>
+                                    <div class="text-muted small text-uppercase">Organisation</div>
+                                    <h6 class="mb-1">{{ organization.user__organization_name }}</h6>
+                                    <span class="badge bg-light text-dark border">{{ organization.subject_count }} subject{{ organization.subject_count|pluralize }}</span>
+                                </div>
+                                <i class="bi bi-building text-primary fs-4"></i>
+                            </div>
+                            <div class="d-flex gap-2 mt-3">
+                                <a class="btn btn-sm btn-outline-secondary flex-fill"
+                                   href="{% url 'pages:data_subjects' %}?organization={{ organization.user__organization_name|urlencode }}">
+                                    View
+                                </a>
+                                {% if request.user.is_authenticated and request.user.role and request.user.role.name != 'subject' %}
+                                    <a class="btn btn-sm btn-outline-primary flex-fill"
+                                       href="{% url 'consents:request_organization_consent' %}?organization={{ organization.user__organization_name|urlencode }}">
+                                        Request all
+                                    </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0">Subjects</h5>
+        <span class="text-muted small">{{ total_subjects }} result{{ total_subjects|pluralize }}</span>
+    </div>
+
     <div class="row g-4">
         {% for subject in data_subjects_list %}
         <div class="col-12 col-lg-6">
             <div class="card shadow-sm border-0 rounded-4 h-100">
                 <div class="card-body d-flex flex-column flex-md-row align-items-md-center">
-
-                    <!-- Info Section -->
                     <div class="flex-grow-1">
-                        <h5 class="fw-bold mb-1">{{subject.user.first_name}} {{subject.user.last_name}}</h5>
-                        <h6 class="text-muted small mb-3">NHS: {{ subject.nhs_number|default:"N/A" }}</h6>
+                        <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
+                            <h5 class="fw-bold mb-0">
+                                {{ subject.user.first_name }} {{ subject.user.last_name }}
+                            </h5>
+                            {% if subject.user.organization_name %}
+                                <span class="badge bg-primary-subtle text-primary-emphasis border">
+                                    {{ subject.user.organization_name }}
+                                </span>
+                            {% else %}
+                                <span class="badge bg-light text-muted border">No organisation</span>
+                            {% endif %}
+                        </div>
+                        <h6 class="text-muted small mb-3">Subject ID: {{ subject.id }}</h6>
 
                         <hr>
 
                         <p class="mb-2">
-                            <i class="fas fa-envelope text-primary me-2"></i>
-                            {{ subject.user.email }}
+                            <i class="bi bi-envelope text-primary me-2"></i>
+                            {{ subject.user.email|default:"No email" }}
                         </p>
 
                         <p class="mb-2">
-                            <i class="fas fa-file-contract text-primary me-2"></i>
-                            Active Consents (Your Role):
-                            <span class="badge bg-success ms-1">
-                                {{ subject.active_consents_count|default:0 }}
-                            </span>
+                            <i class="bi bi-person-badge text-primary me-2"></i>
+                            Username: {{ subject.user.username }}
                         </p>
 
                         <p class="mb-0">
-                            <i class="fas fa-clock text-primary me-2"></i>
-                            Last Update: {{ subject.user.last_update|date:"Y-m-d" }}
+                            <i class="bi bi-calendar3 text-primary me-2"></i>
+                            Date of birth:
+                            {% if subject.date_of_birth %}
+                                {{ subject.date_of_birth|date:"Y-m-d" }}
+                            {% else %}
+                                —
+                            {% endif %}
                         </p>
                     </div>
 
-                    <!-- Actions -->
                     <div class="d-flex flex-md-column gap-2 ms-md-4 mt-3 mt-md-0">
                         <a href="{% url 'patients:patient_medical_timeline' subject.id %}" class="btn btn-outline-primary btn-sm">
-                            <i class="fas fa-eye me-1"></i> View
+                            <i class="bi bi-eye me-1"></i> View
                         </a>
-                        <a href="" class="btn btn-outline-secondary btn-sm">
-                            <i class="fas fa-edit me-1"></i> Edit
-                        </a>
+                        {% if request.user.is_authenticated and request.user.role and request.user.role.name != 'subject' %}
+                            <a href="{% url 'consents:request_consent' subject.id %}" class="btn btn-primary btn-sm">
+                                <i class="bi bi-shield-plus me-1"></i> Request
+                            </a>
+                        {% endif %}
                     </div>
-
                 </div>
             </div>
         </div>
         {% empty %}
         <div class="col-12">
             <div class="alert alert-info text-center">
-                No data subjects found. Click "Add Subject" to get started!
+                No data subjects matched your search.
             </div>
         </div>
         {% endfor %}
     </div>
 
-    <!-- Pagination -->
     <div class="d-flex justify-content-center mt-5">
         <nav>
             <ul class="pagination">
-
                 {% if data_subjects_list.has_previous %}
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ data_subjects_list.previous_page_number }}">Previous</a>
+                    <a class="page-link" href="{{ page_prefix }}page={{ data_subjects_list.previous_page_number }}">Previous</a>
                 </li>
                 {% else %}
                 <li class="page-item disabled">
@@ -75,20 +168,19 @@
 
                 {% for i in data_subjects_list.paginator.page_range %}
                 <li class="page-item {% if data_subjects_list.number == i %}active{% endif %}">
-                    <a class="page-link" href="?page={{ i }}">{{ i }}</a>
+                    <a class="page-link" href="{{ page_prefix }}page={{ i }}">{{ i }}</a>
                 </li>
                 {% endfor %}
 
                 {% if data_subjects_list.has_next %}
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ data_subjects_list.next_page_number }}">Next</a>
+                    <a class="page-link" href="{{ page_prefix }}page={{ data_subjects_list.next_page_number }}">Next</a>
                 </li>
                 {% else %}
                 <li class="page-item disabled">
                     <span class="page-link">Next</span>
                 </li>
                 {% endif %}
-
             </ul>
         </nav>
     </div>
