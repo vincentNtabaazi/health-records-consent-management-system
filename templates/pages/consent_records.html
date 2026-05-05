@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load static %}
 
 {% block content %}
 <div class="container py-5">
@@ -6,6 +7,135 @@
         <h1 class="fw-bold">Consent Records</h1>
         <p class="text-muted mb-0">This list is automatically filtered. Subjects only see requests about themselves, and other roles only see requests they submitted.</p>
     </div>
+
+    <!-- Grant Consent Form (Subject only) - Collapsible -->
+    {% with user_role=request.user.role.name %}
+    {% if user_role == 'subject' %}
+    <div class="mb-4">
+        <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#grantConsentForm">
+            <i class="bi bi-plus-circle me-2"></i>Grant Consent to Data Processor
+        </button>
+        <div class="collapse mt-3" id="grantConsentForm">
+            <div class="card border-primary">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Grant Consent to Data Processor</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" class="row g-3">
+                        {% csrf_token %}
+                        <input type="hidden" name="grant_consent" value="1">
+
+                        <div class="col-md-6">
+                            <label class="form-label">Select Data Processor</label>
+                            <select name="data_processor_id" class="form-select" required>
+                                <option value="">-- Select user --</option>
+                                {% for user in available_users %}
+                                <option value="{{ user.id }}">
+                                    {{ user.get_full_name|default:user.username }} ({{ user.role.get_name_display }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Purpose</label>
+                            <select name="purpose" class="form-select">
+                                <option value="">-- Select purpose --</option>
+                                <option value="treatment">Treatment</option>
+                                <option value="research">Research</option>
+                                <option value="audit">Audit</option>
+                                <option value="emergency">Emergency</option>
+                                <option value="insurance">Insurance</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Expiry Date (leave empty for permanent consent)</label>
+                            <input type="date" name="expiry_date" class="form-control">
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">Notes (optional)</label>
+                            <textarea name="notes" class="form-control" rows="2"></textarea>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">Permissions (select at least one)</label>
+                            <p class="text-muted small mb-2" id="permHint">Select a data processor first to see available permissions.</p>
+                            <div class="row" id="permissionSection" style="display: none;">
+                                {% for role_name, perms in all_role_permissions.items %}
+                                <div class="col-md-6 mb-3 permission-role-section" data-role="{{ role_name }}">
+                                    <div class="card">
+                                        <div class="card-header bg-light">
+                                            <strong>{{ role_name|title }}</strong>
+                                        </div>
+                                        <div class="card-body" style="max-height: 200px; overflow-y: auto;">
+                                            {% for perm in perms %}
+                                            <div class="form-check">
+                                                <input class="form-check-input permission-checkbox" type="checkbox"
+                                                       name="permission_ids" value="{{ perm.id }}"
+                                                       id="perm_{{ role_name }}_{{ perm.id }}"
+                                                       data-role="{{ role_name }}">
+                                                <label class="form-check-label" for="perm_{{ role_name }}_{{ perm.id }}">
+                                                    {{ perm.name }}
+                                                </label>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-send me-2"></i>Send Consent Request
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Duplicate Confirmation Dialog -->
+    {% if duplicate_warning and existing_consent %}
+    <div class="card border-warning mb-4">
+        <div class="card-header bg-warning text-dark">
+            <h5 class="mb-0"><i class="bi bi-exclamation-triangle me-2"></i>Duplicate Consent Detected</h5>
+        </div>
+        <div class="card-body">
+            <p>A similar consent already exists:</p>
+            <ul>
+                <li><strong>Consent ID:</strong> {{ existing_consent.consent_id }}</li>
+                <li><strong>Status:</strong> {{ existing_consent.get_status_display }}</li>
+                <li><strong>Data Processor:</strong> {{ existing_consent.data_processor.get_full_name }}</li>
+            </ul>
+            <p>Do you want to create a new consent anyway?</p>
+            <form method="POST" class="d-inline">
+                {% csrf_token %}
+                <input type="hidden" name="grant_consent" value="1">
+                <input type="hidden" name="confirm_create" value="1">
+                <input type="hidden" name="data_processor_id" value="{{ confirm_data.user_id }}">
+                <input type="hidden" name="purpose" value="{{ confirm_data.purpose }}">
+                <input type="hidden" name="expiry_date" value="{{ confirm_data.expiry_date }}">
+                <input type="hidden" name="notes" value="{{ confirm_data.notes }}">
+                {% for pid in confirm_data.permission_ids %}
+                <input type="hidden" name="permission_ids" value="{{ pid }}">
+                {% endfor %}
+                <button type="submit" class="btn btn-warning">
+                    <i class="bi bi-check-lg me-2"></i>Yes, Create New Consent
+                </button>
+            </form>
+            <a href="{% url 'pages:consent_records' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-x-lg me-2"></i>No, Go Back
+            </a>
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
+    {% endwith %}
 
     <div class="row">
         {% for consent in consents %}
@@ -144,4 +274,53 @@
     </nav>
     {% endif %}
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const userSelect = document.querySelector('select[name="data_processor_id"]');
+    const permSection = document.getElementById('permissionSection');
+    const permHint = document.getElementById('permHint');
+
+    // Available users with their roles
+    const availableUsers = [
+        {% for user in available_users %}
+        {id: '{{ user.id }}', role: '{{ user.role.name }}'},
+        {% endfor %}
+    ];
+
+    if (userSelect) {
+        userSelect.addEventListener('change', function() {
+            const selectedId = this.value;
+
+            // Hide all permission sections first
+            document.querySelectorAll('.permission-role-section').forEach(function(el) {
+                el.style.display = 'none';
+            });
+
+            if (!selectedId) {
+                // No user selected, hide section and show hint
+                if (permSection) permSection.style.display = 'none';
+                if (permHint) {
+                    permHint.style.display = 'block';
+                    permHint.textContent = 'Select a data processor first to see available permissions.';
+                }
+                return;
+            }
+
+            // Find selected user's role
+            const selectedUser = availableUsers.find(function(u) { return u.id === selectedId; });
+
+            if (selectedUser) {
+                // Show permissions for this role
+                const roleSection = document.querySelector('.permission-role-section[data-role="' + selectedUser.role + '"]');
+                if (roleSection) {
+                    roleSection.style.display = 'block';
+                }
+                if (permSection) permSection.style.display = 'block';
+                if (permHint) permHint.style.display = 'none';
+            }
+        });
+    }
+});
+</script>
 {% endblock %}

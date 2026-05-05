@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container my-4">
+
+    <div class="row mb-4">
+        <div class="col-12">
+            <h4 class="fw-semibold">My Access History</h4>
+            <p class="text-muted">Your submitted access requests and their evaluation results.</p>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card p-4">
+                <h6 class="fw-semibold mb-3">Filters</h6>
+                <form method="GET" class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">Patient</label>
+                        <select name="patient_id" class="form-select">
+                            <option value="">-- All patients --</option>
+                            {% for patient in patients %}
+                            <option value="{{ patient.id }}"
+                                {% if filters.patient_id == patient.id|stringformat:'s' %}selected{% endif %}>
+                                {{ patient.user.first_name }} {{ patient.user.last_name }}
+                                {% if patient.nhs_number %}({{ patient.nhs_number }}){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Data Type</label>
+                        <select name="resource_type" class="form-select">
+                            <option value="">-- All --</option>
+                            {% for value, label in resource_type_choices %}
+                            <option value="{{ value }}"
+                                {% if filters.resource_type == value %}selected{% endif %}>
+                                {{ label }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Purpose</label>
+                        <select name="purpose" class="form-select">
+                            <option value="">-- All --</option>
+                            {% for value, label in purpose_choices %}
+                            <option value="{{ value }}"
+                                {% if filters.purpose == value %}selected{% endif %}>
+                                {{ label }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Decision</label>
+                        <select name="decision" class="form-select">
+                            <option value="">-- All --</option>
+                            {% for value, label in decision_choices %}
+                            <option value="{{ value }}"
+                                {% if filters.decision == value %}selected{% endif %}>
+                                {{ label }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">From Date</label>
+                        <input type="date" name="date_from" class="form-control"
+                            value="{{ filters.date_from }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">To Date</label>
+                        <input type="date" name="date_to" class="form-control"
+                            value="{{ filters.date_to }}">
+                    </div>
+                    <div class="col-12 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-search me-1"></i>Apply Filters
+                        </button>
+                        <a href="{% url 'pages:access_history' %}" class="btn btn-outline-secondary">
+                            <i class="bi bi-x-lg me-1"></i>Clear
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card p-3 text-center">
+                <h6 class="text-muted">Total</h6>
+                <h3>{{ total_count }}</h3>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card p-3 text-center">
+                <h6 class="text-muted">Allowed</h6>
+                <h3 class="text-success">{{ allow_count }}</h3>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card p-3 text-center">
+                <h6 class="text-muted">Denied</h6>
+                <h3 class="text-danger">{{ deny_count }}</h3>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card p-3 text-center">
+                <h6 class="text-muted">Redacted</h6>
+                <h3 class="text-warning">{{ limited_count }}</h3>
+            </div>
+        </div>
+    </div>
+
+    <!-- History Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card p-4">
+                <h6 class="fw-semibold mb-3">Access History</h6>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Time</th>
+                                <th>Patient</th>
+                                <th>Data Type</th>
+                                <th>Purpose</th>
+                                <th>Decision</th>
+                                <th>Compliance</th>
+                                <th>Matched Consent</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in history %}
+                            <tr>
+                                <td>{{ log.checked_at|date:"Y-m-d H:i" }}</td>
+                                <td>
+                                    {{ log.access_request.patient.user.first_name }}
+                                    {{ log.access_request.patient.user.last_name }}
+                                    {% if log.access_request.patient.nhs_number %}
+                                    <small class="text-muted">({{ log.access_request.patient.nhs_number }})</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% with rt=log.access_request.resource_type %}
+                                    {% if rt == 'lab_results' %}Lab Results
+                                    {% elif rt == 'diagnosis' %}Diagnosis
+                                    {% elif rt == 'mental_health' %}Mental Health
+                                    {% elif rt == 'medication' %}Medication
+                                    {% elif rt == 'billing' %}Billing
+                                    {% elif rt == 'treatment' %}Treatment
+                                    {% elif rt == 'allergies' %}Allergies
+                                    {% elif rt == 'immunization' %}Immunization
+                                    {% else %}{{ rt }}{% endif %}
+                                    {% endwith %}
+                                </td>
+                                <td>{{ log.access_request.get_purpose_display }}</td>
+                                <td>
+                                    {% if log.decision == 'allow' %}
+                                    <span class="badge bg-success">ALLOW</span>
+                                    {% elif log.decision == 'limited' %}
+                                    <span class="badge bg-warning text-dark">REDACTED</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">DENIED</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if log.compliance_status == 'compliant' %}
+                                    <span class="badge bg-success">Compliant</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">Non-Compliant</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if log.matched_consent %}
+                                    <small class="text-muted">{{ log.matched_consent.consent_id }}</small>
+                                    {% else %}
+                                    <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" class="text-muted text-center py-4">
+                                    No access history found. Try adjusting your filters.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                {% if history.has_other_pages %}
+                <nav class="mt-3">
+                    <ul class="pagination justify-content-center">
+                        {% if history.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ history.previous_page_number }}{% for key, value in filters.items %}{% if value %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Previous</a>
+                        </li>
+                        {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link">Previous</span>
+                        </li>
+                        {% endif %}
+
+                        {% for i in history.paginator.page_range %}
+                            {% if history.number == i %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ i }}</span>
+                            </li>
+                            {% else %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ i }}{% for key, value in filters.items %}{% if value %}&{{ key }}={{ value }}{% endif %}{% endfor %}">{{ i }}</a>
+                            </li>
+                            {% endif %}
+                        {% endfor %}
+
+                        {% if history.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ history.next_page_number }}{% for key, value in filters.items %}{% if value %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Next</a>
+                        </li>
+                        {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link">Next</span>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

@@ -19,11 +19,16 @@ def write_decision_log(access_request, decision, reason, matched_consent=None):
     Write the outcome of a policy evaluation to DecisionLog.
 
     decision: 'allow' | 'deny' | 'limited'
+
+    Compliance status evaluates whether the system's decision is governance-compliant,
+    not whether the original request was acceptable.
     """
-    if decision in ('allow', 'limited'):
-        compliance = 'compliant'
-    else:
+    if decision == 'allow' and matched_consent is None:
         compliance = 'non_compliant'
+    elif decision == 'limited' and matched_consent is None:
+        compliance = 'non_compliant'
+    else:
+        compliance = 'compliant'
 
     log = DecisionLog.objects.create(
         access_request=access_request,

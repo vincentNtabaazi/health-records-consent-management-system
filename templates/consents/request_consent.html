@@ -14,6 +14,32 @@
 
   <form method="post" class="card shadow-sm border-0">
     {% csrf_token %}
+
+    <!-- Duplicate Confirmation Dialog -->
+    {% if duplicate_warning and existing_consent %}
+    <div class="card border-warning m-4">
+        <div class="card-header bg-warning text-dark">
+            <h5 class="mb-0"><i class="bi bi-exclamation-triangle me-2"></i>Duplicate Consent Detected</h5>
+        </div>
+        <div class="card-body">
+            <p>A similar consent already exists:</p>
+            <ul>
+                <li><strong>Consent ID:</strong> {{ existing_consent.consent_id }}</li>
+                <li><strong>Status:</strong> {{ existing_consent.get_status_display }}</li>
+                <li><strong>Subject:</strong> {{ existing_consent.patient.get_full_name }}</li>
+            </ul>
+            <p>Do you want to create a new request anyway?</p>
+            <input type="hidden" name="confirm_create" value="1">
+            <button type="submit" class="btn btn-warning">
+                <i class="bi bi-check-lg me-2"></i>Yes, Create New Request
+            </button>
+            <a href="{% url 'consents:request_consent' patient.id %}" class="btn btn-outline-secondary">
+                <i class="bi bi-x-lg me-2"></i>No, Go Back
+            </a>
+        </div>
+    </div>
+    {% endif %}
+
     <div class="card-body p-4">
       <div class="alert alert-light border mb-4">
         The approval path is assigned automatically by the system. A request that fully matches the subject's sharing preferences will be auto-approved. Otherwise it will go to manual review, where the subject can approve all permissions, approve only some of them, or reject the request.
@@ -25,7 +51,7 @@
           {{ form.purpose }}
         </div>
         <div class="col-md-3">
-          <label class="form-label fw-semibold">Expiry date</label>
+          <label class="form-label fw-semibold">Expiry date (leave empty for permanent consent)</label>
           {{ form.expiry_date }}
         </div>
         <div class="col-12">

@@ -110,7 +110,20 @@
                         {% endif %}
                     </div>
 
+                    {% if consent.status == 'pending' and consent.consent_type == 'GRANTED_BY_SUBJECT' and consent.patient_id == request.user.id %}
+                        <div class="alert alert-warning">
+                            <i class="bi bi-info-circle me-2"></i>
+                            You created this consent request. Please wait for <strong>{{ consent.data_processor.get_full_name }}</strong> to accept it.
+                        </div>
+                    {% endif %}
+
                     {% if can_review and consent.status == 'pending' %}
+                        {% if consent.consent_type == 'GRANTED_BY_SUBJECT' and consent.patient_id == request.user.id %}
+                        <div class="alert alert-warning">
+                            <i class="bi bi-info-circle me-2"></i>
+                            You created this consent request. Please wait for <strong>{{ consent.data_processor.get_full_name }}</strong> to accept it.
+                        </div>
+                        {% else %}
                         <div class="alert alert-info">
                             Checked permissions will be granted. Unchecked permissions will be denied for this request.
                         </div>
@@ -152,6 +165,7 @@
                             {% csrf_token %}
                             <button type="submit" class="btn btn-outline-danger">Reject all</button>
                         </form>
+                        {% endif %}
                     {% else %}
                         <div class="list-group">
                             {% for permission in permission_rows %}

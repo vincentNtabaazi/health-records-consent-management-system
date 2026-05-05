@@ -7,27 +7,97 @@
     <div class="row mb-4">
         <div class="col-12">
             <h4 class="fw-semibold">Access Request Evaluation</h4>
-            <p class="text-muted">Submit a data access request to evaluate against active consent policies.</p>
+            <p class="text-muted">
+                Submit a data access request to evaluate against active consent policies.
+            </p>
+
+            <div class="alert alert-light border small mt-3">
+                <strong>Note:</strong> Compliance status indicates whether the system decision correctly enforced governance rules.
+                A denied request can still be compliant if the system correctly blocks unauthorised access.
+            </div>
         </div>
     </div>
 
+    <!-- Authorized Records Section -->
+    {% with role=request.user.role.name %}
+    {% if role in allowed_requester_roles and authorized_records %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-success">
+                <div class="card-header bg-success text-white">
+                    <h6 class="mb-0"><i class="bi bi-check-circle me-2"></i>My Authorized Records</h6>
+                </div>
+                <div class="card-body p-0">
+                    {% if authorized_records %}
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th>Patient</th>
+                                    <th>Title</th>
+                                    <th>Category</th>
+                                    <th>Created At</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for record in authorized_records %}
+                                <tr>
+                                    <td>{{ record.patient_name }}</td>
+                                    <td>{{ record.title }}</td>
+                                    <td><span class="badge bg-secondary">{{ record.category }}</span></td>
+                                    <td>{{ record.created_at|date:"Y-m-d" }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info m-3">
+                        No authorized records yet. Request consent from a subject to access their data.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Tabs -->
+    <ul class="nav nav-tabs mb-4" id="accessTabs">
+        <li class="nav-item">
+            <a class="nav-link {% if not batch_mode %}active{% endif %}" 
+               href="{% url 'pages:access_request' %}">
+                Single Request
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {% if batch_mode %}active{% endif %}"
+               href="{% url 'pages:access_request' %}?mode=batch">
+                Batch Request
+            </a>
+        </li>
+    </ul>
+
+    {% if not batch_mode %}
+    <!-- ===== SINGLE REQUEST ===== -->
     <div class="row">
-        <!-- Form -->
         <div class="col-md-5 mb-4">
             <div class="card p-4">
                 <h6 class="fw-semibold mb-3">Request Details</h6>
                 <form method="POST">
                     {% csrf_token %}
+                    <input type="hidden" name="mode" value="single">
 
                     <div class="mb-3">
                         <label class="form-label">Requester</label>
-                        <input type="text" class="form-control" value="{{ request.user.username }} ({{ request.user.role }})" disabled>
+                        <input type="text" class="form-control"
+                               value="{{ request.user.username }} ({{ request.user.role }})" disabled>
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label">Patient</label>
-                        <input type="text" id="patientSearch" class="form-control mb-1" 
-                            placeholder="Type to search patient...">
+                        <input type="text" id="patientSearch" class="form-control mb-1"
+                               placeholder="Type to search patient...">
                         <select name="patient_id" id="patientSelect" class="form-select" required>
                             <option value="">-- Select patient --</option>
                             {% for patient in patients %}
@@ -48,7 +118,9 @@
                             <option value="mental_health">Mental Health</option>
                             <option value="medication">Medication</option>
                             <option value="billing">Billing</option>
-                            <option value="imaging">Imaging</option>
+                            <option value="treatment">Treatment</option>
+                            <option value="allergies">Allergies</option>
+                            <option value="immunization">Immunization</option>
                         </select>
                     </div>
 
@@ -78,7 +150,6 @@
             </div>
         </div>
 
-        <!-- Result -->
         {% if submitted %}
         <div class="col-md-7 mb-4">
             <div class="card p-4">
@@ -87,23 +158,17 @@
                 {% if decision == 'allow' %}
                 <div class="alert alert-success d-flex align-items-center">
                     <span class="fs-4 me-3">✅</span>
-                    <div>
-                        <strong>ALLOW</strong> — Full access granted.
-                    </div>
+                    <div><strong>ALLOW</strong> — Full access granted.</div>
                 </div>
                 {% elif decision == 'limited' %}
                 <div class="alert alert-warning d-flex align-items-center">
                     <span class="fs-4 me-3">⚠️</span>
-                    <div>
-                        <strong>ALLOW WITH REDACTION</strong> — Anonymised data only.
-                    </div>
+                    <div><strong>ALLOW WITH REDACTION</strong> — Anonymised data only.</div>
                 </div>
                 {% else %}
                 <div class="alert alert-danger d-flex align-items-center">
                     <span class="fs-4 me-3">❌</span>
-                    <div>
-                        <strong>DENY</strong> — Access not permitted.
-                    </div>
+                    <div><strong>DENY</strong> — Access not permitted.</div>
                 </div>
                 {% endif %}
 
@@ -120,10 +185,7 @@
                             {% endif %}
                         </td>
                     </tr>
-                    <tr>
-                        <th>Reason</th>
-                        <td>{{ reason }}</td>
-                    </tr>
+                    <tr><th>Reason</th><td>{{ reason }}</td></tr>
                     <tr>
                         <th>Matched Consent</th>
                         <td>
@@ -144,41 +206,201 @@
                             {% endif %}
                         </td>
                     </tr>
-                    <tr>
-                        <th>Evaluated At</th>
-                        <td>{{ result.checked_at }}</td>
-                    </tr>
+                    <tr><th>Evaluated At</th><td>{{ result.checked_at }}</td></tr>
                 </table>
 
                 <div class="mt-3">
                     <a href="{% url 'pages:access_request' %}" class="btn btn-outline-secondary btn-sm">
                         New Request
                     </a>
+                    {% with role=request.user.role.name %}
+                    {% if role == 'researcher' or role == 'regulator' or request.user.is_staff %}
                     <a href="{% url 'pages:compliance_dashboard' %}" class="btn btn-outline-primary btn-sm ms-2">
                         View Compliance Dashboard
                     </a>
+                    {% endif %}
+                    {% endwith %}
                 </div>
             </div>
         </div>
         {% endif %}
-
     </div>
+
+    {% else %}
+    <!-- ===== BATCH REQUEST ===== -->
+    <div class="row mb-4">
+        <div class="col-md-5 mb-4">
+            <div class="card p-4">
+                <h6 class="fw-semibold mb-3">Step 1: Search by Data Type</h6>
+                <form method="POST">
+                    {% csrf_token %}
+                    <input type="hidden" name="mode" value="batch_search">
+
+                    <div class="mb-3">
+                        <label class="form-label">Data Type</label>
+                        <select name="resource_type" class="form-select" required>
+                            <option value="">-- Select data type --</option>
+                            <option value="lab_results">Lab Results</option>
+                            <option value="diagnosis">Diagnosis</option>
+                            <option value="mental_health">Mental Health</option>
+                            <option value="medication">Medication</option>
+                            <option value="billing">Billing</option>
+                            <option value="treatment">Treatment</option>
+                            <option value="allergies">Allergies</option>
+                            <option value="immunization">Immunization</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Purpose</label>
+                        <select name="purpose" class="form-select" required>
+                            <option value="">-- Select purpose --</option>
+                            <option value="treatment">Treatment</option>
+                            <option value="research">Research</option>
+                            <option value="audit">Audit</option>
+                            <option value="emergency">Emergency</option>
+                            <option value="insurance">Insurance</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100">Search Patients</button>
+                </form>
+            </div>
+        </div>
+
+        {% if matched_patients is not None %}
+        <div class="col-md-7 mb-4">
+            <div class="card p-4">
+                <h6 class="fw-semibold mb-3">
+                    Step 2: Select Patients
+                    <span class="badge bg-secondary ms-2">{{ matched_patients.count }} found</span>
+                </h6>
+
+                {% if matched_patients %}
+                <form method="POST">
+                    {% csrf_token %}
+                    <input type="hidden" name="mode" value="batch_submit">
+                    <input type="hidden" name="resource_type" value="{{ selected_resource_type }}">
+                    <input type="hidden" name="purpose" value="{{ batch_purpose }}">
+
+                    <div class="mb-3">
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="selectAll">
+                            <label class="form-check-label fw-semibold" for="selectAll">
+                                Select All
+                            </label>
+                        </div>
+                        <hr>
+                        {% for patient in matched_patients %}
+                        <div class="form-check mb-2">
+                            <input class="form-check-input patient-checkbox"
+                                   type="checkbox" name="patient_ids"
+                                   value="{{ patient.id }}" id="patient_{{ patient.id }}">
+                            <label class="form-check-label" for="patient_{{ patient.id }}">
+                                {{ patient.user.first_name }} {{ patient.user.last_name }}
+                                {% if patient.nhs_number %}
+                                <small class="text-muted">({{ patient.nhs_number }})</small>
+                                {% endif %}
+                            </label>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <button type="submit" class="btn btn-success w-100">
+                        Submit Batch Access Requests
+                    </button>
+                </form>
+                {% else %}
+                <div class="alert alert-warning">
+                    No patients found with <strong>{{ selected_resource_type }}</strong> records.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if batch_results %}
+    <div class="row">
+        <div class="col-12">
+            <div class="card p-4">
+                <h6 class="fw-semibold mb-3">Batch Evaluation Results</h6>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Patient</th>
+                                <th>Decision</th>
+                                <th>Compliance</th>
+                                <th>Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for r in batch_results %}
+                            <tr>
+                                <td>{{ r.patient }}</td>
+                                <td>
+                                    {% if r.decision == 'allow' %}
+                                    <span class="badge bg-success">ALLOW</span>
+                                    {% elif r.decision == 'limited' %}
+                                    <span class="badge bg-warning text-dark">REDACTED</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">DENY</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if r.compliance_status == 'compliant' %}
+                                    <span class="badge bg-success">Compliant</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">Non-Compliant</span>
+                                    {% endif %}
+                                </td>
+                                <td><small>{{ r.reason }}</small></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="mt-3">
+                    {% with role=request.user.role.name %}
+                    {% if role == 'researcher' or role == 'regulator' or request.user.is_staff %}
+                    <a href="{% url 'pages:compliance_dashboard' %}" class="btn btn-outline-primary btn-sm">
+                        View Compliance Dashboard
+                    </a>
+                    {% endif %}
+                    {% endwith %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% endif %}
 </div>
 
 <script>
-document.getElementById('patientSearch').addEventListener('input', function() {
-    const search = this.value.toLowerCase();
-    const select = document.getElementById('patientSelect');
-    const options = select.querySelectorAll('option');
-    options.forEach(option => {
-        if (option.value === '') return;
-        if (option.text.toLowerCase().includes(search)) {
-            option.style.display = '';
-        } else {
-            option.style.display = 'none';
-        }
+// Single request patient search
+const searchInput = document.getElementById('patientSearch');
+if (searchInput) {
+    searchInput.addEventListener('input', function() {
+        const search = this.value.toLowerCase();
+        const select = document.getElementById('patientSelect');
+        select.querySelectorAll('option').forEach(option => {
+            if (option.value === '') return;
+            option.style.display = option.text.toLowerCase().includes(search) ? '' : 'none';
+        });
     });
-});
-</script>
+}
 
+// Batch select all
+const selectAll = document.getElementById('selectAll');
+if (selectAll) {
+    selectAll.addEventListener('change', function() {
+        document.querySelectorAll('.patient-checkbox').forEach(cb => {
+            cb.checked = this.checked;
+        });
+    });
+}
+</script>
+{% endwith %}
 {% endblock %}

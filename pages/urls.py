@@ -1,5 +1,6 @@
 from django.urls import path
 from .views import *
+from .views_access_history import access_history_view
 
 app_name = 'pages'
 
@@ -12,5 +13,7 @@ urlpatterns = [
     path('medical_records/', medical_records, name='medical_records'),
     path('access_request/', access_request_view, name='access_request'),
     path('compliance/', compliance_dashboard_view, name='compliance_dashboard'),
+    path('compliance/export/', export_audit_logs_csv, name='export_audit_logs_csv'),
+    path('access_history/', access_history_view, name='access_history'),
+    path('my_data/', my_data_view, name='my_data'),
 ]
-
