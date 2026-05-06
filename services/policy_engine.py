@@ -132,7 +132,7 @@ def _apply_governance_rules(requester, patient, resource_type, purpose):
         consent = Consent.objects.filter(
             patient=patient.user,
             data_processor=requester,
-            data_type=resource_type,
+            data_type__contains=[resource_type],
             purpose=purpose,
             status='active',
         ).order_by('-created_date').first()

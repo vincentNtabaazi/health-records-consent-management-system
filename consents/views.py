@@ -1,3 +1,6 @@
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib import messages
+from .models import *
 import json
 
 from django.contrib import messages
@@ -17,7 +20,10 @@ from consents.models import Consent
 from patients.models import MedicalRecord, Patient, PatientPermission
 from users.models import CustomPermission
 from services.odrl import infer_action_from_permission, infer_data_category_from_permission, prettify_permission
-from services.policy_engine import check_access
+from services.policy_engine import check_access, evaluate_access
+import csv
+from django.http import HttpResponse
+from django.utils import timezone
 
 
 
@@ -436,3 +442,52 @@ def consent_details(request, consent_id):
         'odrl_policy_pretty': json.dumps(consent.odrl_policy or {}, ensure_ascii=False, indent=2),
     }
     return render(request, 'consents/consent_details.html', context)
+
+
+def download_allowed_data_csv(request):
+    requestor = request.GET.get('requestor')
+    requestor_user_acc = User.objects.get(id=requestor)
+    datatype = request.GET.get('datatype')
+    purpose = request.GET.get('purpose')
+
+    patient_csv_data = []
+
+    for patient in Patient.objects.all():
+        log = evaluate_access(
+            requester=requestor_user_acc,
+            patient=patient,
+            resource_type=datatype,
+            purpose=purpose,
+            action='share',
+        )
+        if log.decision == 'allow':
+            patient_csv_data.append({
+                "patient_first_name": patient.user.first_name,
+                "patient_last_name": patient.user.last_name,
+                "patient_email": patient.user.email,
+                "can_delegate": patient.user.can_delegate,
+                "data_type": log.access_request.resource_type,
+                "requestor": log.access_request.requester.organization_name,
+                "consent_id": log.matched_consent.consent_id,
+                "consent_type": log.matched_consent.consent_type,
+                "purpose": log.matched_consent.purpose,
+                "decision_date": log.matched_consent.decision_date.strftime("%Y-%m-%d") if log.matched_consent.decision_date else "",
+                "expiry_date": log.matched_consent.expiry_date.strftime("%Y-%m-%d") if log.matched_consent.expiry_date else "",
+            })
+
+    filename = f"Patient_Data_{timezone.now().strftime('%Y%m%d_%H%M')}.csv"
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+    writer = csv.writer(response)
+
+    if patient_csv_data:
+        headers = list(patient_csv_data[0].keys())
+        writer.writerow(headers)
+
+        for row in patient_csv_data:
+            writer.writerow([row.get(h, "") for h in headers])
+    else:
+        writer.writerow(["No data available"])
+
+    return response

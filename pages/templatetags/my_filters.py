@@ -9,3 +9,7 @@ def lookup(dictionary, key):
     if isinstance(dictionary, dict):
         return dictionary.get(key, set())
     return set()
+
+@register.filter
+def clean_key(value):
+    return value.replace("_", " ").upper()

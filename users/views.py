@@ -8,6 +8,10 @@ from django.contrib.auth import get_user_model
 from .models import Role, CustomPermission, RolePermission
 from .forms import SignupForm, LoginForm, ProfileForm, ChangePasswordForm, DelegateForm
 from .utils import authenticate
+from django.core.mail import send_mail
+from django.core.mail import EmailMultiAlternatives
+from django.template.loader import render_to_string
+from django.conf import settings
 
 User = get_user_model()
 
@@ -24,6 +28,28 @@ def _create_patient(user):
 # ─────────────────────────────────────────────
 # auth views
 # ─────────────────────────────────────────────
+
+def send_welcome_email(user):
+    subject = 'Welcome to The Consent Management System'
+    text_content = f'Hi {user.username}, thanks for signing up. You will receive an email to confirm that you are able to log in to the system after your verification process is completed.'
+    html_content = render_to_string('emails/await_verification.html', {'user': user})
+
+    email = EmailMultiAlternatives(
+        subject, text_content, settings.DEFAULT_FROM_EMAIL, [user.email]
+    )
+    email.attach_alternative(html_content, 'text/html')
+    email.send()
+
+def send_verification_email(user):
+    subject = 'Account Verification'
+    text_content = f'Hi {user.username}, thanks for signing up. Your account has been verified and you can now log in.'
+    html_content = render_to_string('emails/verification.html', {'user': user})
+
+    email = EmailMultiAlternatives(
+        subject, text_content, settings.DEFAULT_FROM_EMAIL, [user.email]
+    )
+    email.attach_alternative(html_content, 'text/html')
+    email.send()
 
 def signup_view(request):
     form = SignupForm(request.POST or None)
@@ -43,8 +69,18 @@ def signup_view(request):
             user.password = make_password(cd["password1"])
             user.save()
 
+
+
             if cd["role"].name == "subject":
                 _create_patient(user)
+            else:
+                try:
+                    user.is_active = False
+                    user.save()
+                    send_welcome_email(user)
+                except Exception as e:
+                    # Log the error or handle it as needed
+                    print(f"Error sending welcome email: {e}")
 
             messages.success(request, "Account created successfully. You can now log in.")
             return redirect("users:login_view")
@@ -186,6 +222,9 @@ def toggle_user_active_view(request, user_id):
         else:
             target.is_active = not target.is_active
             target.save(update_fields=["is_active"])
+            if target.is_active:
+                if target.last_login:
+                    send_verification_email(target)
             status = "activated" if target.is_active else "deactivated"
             messages.success(request, f"User {target.get_full_name()} has been {status}.")
 

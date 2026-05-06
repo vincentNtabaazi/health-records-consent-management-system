@@ -83,7 +83,7 @@ WSGI_APPLICATION = 'CMS.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'cms',
+        'NAME': 'cms_2',
         'USER': 'root',
         'PASSWORD': 'Great2025',
         'HOST': 'localhost',
@@ -128,3 +128,6 @@ AUTH_USER_MODEL = "users.User"
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+

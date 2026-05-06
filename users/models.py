@@ -50,3 +50,7 @@ class User(AbstractUser):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def active_consents(self):
+        return self.consents_as_patient.filter(status='active').count()
