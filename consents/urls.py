@@ -10,6 +10,7 @@ from .views import (
     subject_sharing_preferences_view,
     my_subject_sharing_preferences_view,
     granted_records_view,
+    download_allowed_data_csv
 )
 
 app_name = 'consents'
@@ -27,4 +28,5 @@ urlpatterns = [
     path('<int:consent_id>/records/', granted_records_view, name='granted_records'),
     path('<int:pk>/', consent_details, name='consent_details'),
     # path('consent_withdraw/', consent_withdraw, name='consent_withdraw'),
+    path('download-csv/', download_allowed_data_csv, name='download_allowed_data_csv'),
 ]

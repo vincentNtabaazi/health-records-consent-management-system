@@ -1,4 +1,6 @@
 import csv
+
+from django.contrib.auth.models import AbstractUser
 from django.http import HttpResponse
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
@@ -246,6 +248,7 @@ def build_requester_scoped_compliance_report(logs):
 @login_required(login_url='users:login_view')
 def access_request_view(request):
     patients = Patient.objects.select_related('user').all()
+    batch_mode = request.GET.get("mode") == "batch"
 
     if request.method == 'POST':
         patient_id = request.POST.get('patient_id')
@@ -253,28 +256,62 @@ def access_request_view(request):
         purpose = request.POST.get('purpose')
         action = request.POST.get('action', 'read')
 
-        try:
-            patient = Patient.objects.get(id=patient_id)
-            log = evaluate_access(
-                requester=request.user,
-                patient=patient,
-                resource_type=resource_type,
-                purpose=purpose,
-                action=action,
-            )
+        if not batch_mode:
+            try:
+                patient = Patient.objects.get(id=patient_id)
+                log = evaluate_access(
+                    requester=request.user,
+                    patient=patient,
+                    resource_type=resource_type,
+                    purpose=purpose,
+                    action=action,
+                )
+                context = {
+                    'patients': patients,
+                    'result': log,
+                    'decision': log.decision,
+                    'reason': log.reason,
+                    'submitted': True,
+                }
+                return render(request, 'pages/access_request.html', context)
+
+            except Patient.DoesNotExist:
+                messages.error(request, 'Patient not found.')
+        else:
+            accepted_requests = []
+            for patient in patients:
+                log = evaluate_access(
+                    requester=request.user,
+                    patient=patient,
+                    resource_type=resource_type,
+                    purpose=purpose,
+                    action=action,
+                )
+                if log.decision == 'allow':
+                    accepted_requests.append({
+                        "result": log,
+                        "patient": patient,
+                        "decision": log.decision,
+                        "reason": log.reason,
+                    })
+
             context = {
                 'patients': patients,
-                'result': log,
-                'decision': log.decision,
-                'reason': log.reason,
-                'submitted': True,
+                'batch_results': True,
+                'accepted_requests': accepted_requests,
+                'batch_mode': batch_mode,
+                'purpose':purpose,
+                'resource_type':resource_type
             }
             return render(request, 'pages/access_request.html', context)
 
-        except Patient.DoesNotExist:
-            messages.error(request, 'Patient not found.')
 
-    return render(request, 'pages/access_request.html', {'patients': patients})
+    context = {
+        'patients': patients,
+        'batch_mode': batch_mode,
+    }
+
+    return render(request, 'pages/access_request.html', context)
 
 
 def get_visible_decision_logs_for_user(user):
