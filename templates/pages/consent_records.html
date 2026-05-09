@@ -1,34 +1,48 @@
 {% extends 'base.html' %}
+{% load my_filters %}
 {% load static %}
 
 {% block content %}
-<div class="container py-5">
-    <div class="text-center mb-5">
-        <h1 class="fw-bold">Consent Records</h1>
-        <p class="text-muted mb-0">This list is automatically filtered. Subjects only see requests about themselves, and other roles only see requests they submitted.</p>
-    </div>
+<div class="container-fluid bg-white min-vh-100 py-5">
+    <div class="container">
+        <!-- Header Section -->
+        <div class="row mb-5 align-items-center">
+            <div class="col-md-8">
+                <h1 class="display-6 fw-bold text-dark mb-1">Consent Records</h1>
+                <p class="text-secondary">Manage and monitor data access permissions across the network.</p>
+            </div>
+            <div class="col-md-4 text-md-end">
+                {% with user_role=request.user.role.name %}
+                {% if user_role == 'subject' %}
+                <button class="btn btn-dark btn-lg shadow-sm" type="button" data-bs-toggle="collapse" data-bs-target="#grantConsentForm">
+                    <i class="bi bi-shield-check me-2"></i>Grant New Consent
+                </button>
+                {% endif %}
+                {% endwith %}
+            </div>
+        </div>
 
-    <!-- Grant Consent Form (Subject only) - Collapsible -->
-    {% with user_role=request.user.role.name %}
-    {% if user_role == 'subject' %}
-    <div class="mb-4">
-        <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#grantConsentForm">
-            <i class="bi bi-plus-circle me-2"></i>Grant Consent to Data Processor
-        </button>
-        <div class="collapse mt-3" id="grantConsentForm">
-            <div class="card border-primary">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0">Grant Consent to Data Processor</h5>
-                </div>
-                <div class="card-body">
-                    <form method="POST" class="row g-3">
+        <!-- Grant Consent Form (Subject only) -->
+        {% with user_role=request.user.role.name %}
+        {% if user_role == 'subject' %}
+        <div class="collapse {% if duplicate_warning %}show{% endif %} mb-5" id="grantConsentForm">
+            <div class="card border-0 shadow-sm bg-light">
+                <div class="card-body p-4 p-md-5">
+                    <div class="d-flex align-items-center mb-4">
+                        <div class="bg-primary text-white rounded-circle p-2 me-3">
+                            <i class="bi bi-person-plus-fill"></i>
+                        </div>
+                        <h4 class="mb-0">New Consent Authorization</h4>
+                    </div>
+
+                    <form method="POST" class="row g-4">
                         {% csrf_token %}
                         <input type="hidden" name="grant_consent" value="1">
 
-                        <div class="col-md-6">
-                            <label class="form-label">Select Data Processor</label>
-                            <select name="data_processor_id" class="form-select" required>
-                                <option value="">-- Select user --</option>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold text-muted small uppercase">Data Processor</label>
+                            <select name="data_processor_id" class="form-select border-0 shadow-sm" required>
+                                <option value="">Select a professional...</option>
                                 {% for user in available_users %}
                                 <option value="{{ user.id }}">
                                     {{ user.get_full_name|default:user.username }} ({{ user.role.get_name_display }})
@@ -37,10 +51,10 @@
                             </select>
                         </div>
 
-                        <div class="col-md-6">
-                            <label class="form-label">Purpose</label>
-                            <select name="purpose" class="form-select">
-                                <option value="">-- Select purpose --</option>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold text-muted small">Purpose of Access</label>
+                            <select name="purpose" class="form-select border-0 shadow-sm">
+                                <option value="">Select purpose...</option>
                                 <option value="treatment">Treatment</option>
                                 <option value="research">Research</option>
                                 <option value="audit">Audit</option>
@@ -49,239 +63,188 @@
                             </select>
                         </div>
 
-                        <div class="col-md-6">
-                            <label class="form-label">Expiry Date (leave empty for permanent consent)</label>
-                            <input type="date" name="expiry_date" class="form-control">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold text-muted small">Expiry Date</label>
+                            <input type="date" name="expiry_date" class="form-control border-0 shadow-sm">
                         </div>
 
                         <div class="col-12">
-                            <label class="form-label">Notes (optional)</label>
-                            <textarea name="notes" class="form-control" rows="2"></textarea>
-                        </div>
-
-                        <div class="col-12">
-                            <label class="form-label">Permissions (select at least one)</label>
-                            <p class="text-muted small mb-2" id="permHint">Select a data processor first to see available permissions.</p>
-                            <div class="row" id="permissionSection" style="display: none;">
-                                {% for role_name, perms in all_role_permissions.items %}
-                                <div class="col-md-6 mb-3 permission-role-section" data-role="{{ role_name }}">
-                                    <div class="card">
-                                        <div class="card-header bg-light">
-                                            <strong>{{ role_name|title }}</strong>
-                                        </div>
-                                        <div class="card-body" style="max-height: 200px; overflow-y: auto;">
+                            <label class="form-label fw-semibold text-muted small">Permissions Scope</label>
+                            <div class="p-3 bg-white rounded shadow-sm">
+                                <p class="text-muted small mb-0" id="permHint">Please select a data processor to define specific access levels.</p>
+                                <div class="row" id="permissionSection" style="display: none;">
+                                    {% for role_name, perms in all_role_permissions.items %}
+                                    <div class="col-12 permission-role-section" data-role="{{ role_name }}">
+                                        <div class="row g-2">
                                             {% for perm in perms %}
-                                            <div class="form-check">
-                                                <input class="form-check-input permission-checkbox" type="checkbox"
-                                                       name="permission_ids" value="{{ perm.id }}"
-                                                       id="perm_{{ role_name }}_{{ perm.id }}"
-                                                       data-role="{{ role_name }}">
-                                                <label class="form-check-label" for="perm_{{ role_name }}_{{ perm.id }}">
-                                                    {{ perm.name }}
-                                                </label>
+                                            <div class="col-md-4">
+                                                <div class="form-check p-2 border rounded-pill px-3">
+                                                    <input class="form-check-input ms-0 me-2 permission-checkbox" type="checkbox"
+                                                           name="permission_ids" value="{{ perm.id }}"
+                                                           id="perm_{{ role_name }}_{{ perm.id }}"
+                                                           data-role="{{ role_name }}">
+                                                    <label class="form-check-label small" for="perm_{{ role_name }}_{{ perm.id }}">
+                                                        {{ perm.name }}
+                                                    </label>
+                                                </div>
                                             </div>
                                             {% endfor %}
                                         </div>
                                     </div>
+                                    {% endfor %}
                                 </div>
-                                {% endfor %}
                             </div>
                         </div>
 
                         <div class="col-12">
-                            <button type="submit" class="btn btn-primary">
-                                <i class="bi bi-send me-2"></i>Send Consent Request
-                            </button>
+                            <label class="form-label fw-semibold text-muted small">Additional Notes</label>
+                            <textarea name="notes" class="form-control border-0 shadow-sm" rows="2" placeholder="Describe context or constraints..."></textarea>
+                        </div>
+
+                        <div class="col-12 text-end">
+                            <button type="submit" class="btn btn-primary px-5">Submit Authorization</button>
                         </div>
                     </form>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Duplicate Confirmation Dialog -->
-    {% if duplicate_warning and existing_consent %}
-    <div class="card border-warning mb-4">
-        <div class="card-header bg-warning text-dark">
-            <h5 class="mb-0"><i class="bi bi-exclamation-triangle me-2"></i>Duplicate Consent Detected</h5>
-        </div>
-        <div class="card-body">
-            <p>A similar consent already exists:</p>
-            <ul>
-                <li><strong>Consent ID:</strong> {{ existing_consent.consent_id }}</li>
-                <li><strong>Status:</strong> {{ existing_consent.get_status_display }}</li>
-                <li><strong>Data Processor:</strong> {{ existing_consent.data_processor.get_full_name }}</li>
-            </ul>
-            <p>Do you want to create a new consent anyway?</p>
-            <form method="POST" class="d-inline">
-                {% csrf_token %}
-                <input type="hidden" name="grant_consent" value="1">
-                <input type="hidden" name="confirm_create" value="1">
-                <input type="hidden" name="data_processor_id" value="{{ confirm_data.user_id }}">
-                <input type="hidden" name="purpose" value="{{ confirm_data.purpose }}">
-                <input type="hidden" name="expiry_date" value="{{ confirm_data.expiry_date }}">
-                <input type="hidden" name="notes" value="{{ confirm_data.notes }}">
-                {% for pid in confirm_data.permission_ids %}
-                <input type="hidden" name="permission_ids" value="{{ pid }}">
-                {% endfor %}
-                <button type="submit" class="btn btn-warning">
-                    <i class="bi bi-check-lg me-2"></i>Yes, Create New Consent
-                </button>
-            </form>
-            <a href="{% url 'pages:consent_records' %}" class="btn btn-outline-secondary">
-                <i class="bi bi-x-lg me-2"></i>No, Go Back
-            </a>
-        </div>
-    </div>
-    {% endif %}
-    {% endif %}
-    {% endwith %}
-
-    <div class="row">
-        {% for consent in consents %}
-        <div class="col-md-6 col-lg-4 mb-4">
-            <div class="card h-100 shadow-sm border-0">
-                <div class="card-body d-flex flex-column">
-                    <div class="d-flex justify-content-between align-items-start mb-3">
-                        <h5 class="card-title text-primary mb-0">{{ consent.consent_id }}</h5>
-                        {% if consent.status == "active" %}
-                            <span class="badge bg-success">Active</span>
-                        {% elif consent.status == "pending" %}
-                            <span class="badge bg-warning text-dark">Pending</span>
-                        {% elif consent.status == "denied" %}
-                            <span class="badge bg-danger">Denied</span>
-                        {% elif consent.status == "withdrawn" %}
-                            <span class="badge bg-secondary">Withdrawn</span>
-                        {% elif consent.status == "expired" %}
-                            <span class="badge bg-dark">Expired</span>
-                        {% else %}
-                            <span class="badge bg-light text-dark">{{ consent.status }}</span>
-                        {% endif %}
-                    </div>
-
-                    <ul class="list-group list-group-flush flex-grow-1">
-                        <li class="list-group-item px-0">
-                            <strong>Data Subject:</strong><br>
-                            <span>{{ consent.patient.get_full_name|default:consent.patient.username }}</span>
-                        </li>
-
-                        <li class="list-group-item px-0">
-                            <strong>Requester:</strong><br>
-                            <span>{{ consent.data_processor.get_full_name|default:consent.data_processor.username }}</span>
-                            {% if consent.data_processor.role %}
-                                <span class="text-muted small d-block">{{ consent.data_processor.role.get_name_display }}</span>
-                            {% endif %}
-                        </li>
-
-                        <li class="list-group-item px-0">
-                            <strong>Organization:</strong><br>
-                            <span>{{ consent.data_processor.organization_name|default:"—" }}</span>
-                        </li>
-
-                        <li class="list-group-item px-0">
-                            <strong>Purpose:</strong><br>
-                            <span>{{ consent.purpose|default:"—" }}</span>
-                        </li>
-
-                        <li class="list-group-item px-0">
-                            <strong>Categories:</strong><br>
-                            {% if consent.data_type %}
-                                <span class="badge bg-secondary">{{ consent.data_type }}</span>
-                            {% else %}
-                                <span class="text-muted">—</span>
-                            {% endif %}
-                        </li>
-
-                        <li class="list-group-item px-0">
-                            <strong>Approval Path:</strong><br>
-                            <span>{{ consent.get_consent_type_display|default:consent.consent_type }}</span>
-                        </li>
-
-                        <li class="list-group-item px-0">
-                            <strong>Created:</strong><br>
-                            <span>{{ consent.created_date|date:"Y-m-d H:i" }}</span>
-                        </li>
-
-                        <li class="list-group-item px-0">
-                            <strong>Expiry Date:</strong><br>
-                            <span>
-                                {% if consent.expiry_date %}
-                                    {{ consent.expiry_date|date:"Y-m-d" }}
-                                {% else %}
-                                    —
-                                {% endif %}
-                            </span>
-                        </li>
-                    </ul>
-
-                    <div class="mt-3 text-end d-flex justify-content-end gap-2">
-                        {% if consent.status == 'active' and consent.granted_permissions %}
-                            <a href="{% url 'consents:granted_records' consent.id %}" class="btn btn-outline-success btn-sm">Granted Data</a>
-                        {% endif %}
-                        <a href="{% url 'consents:consent_details' consent.id %}" class="btn btn-outline-primary btn-sm">View Details</a>
-                    </div>
+        <!-- Duplicate Warning (Cleaned Up) -->
+        {% if duplicate_warning and existing_consent %}
+        <div class="alert alert-warning border-0 shadow-sm mb-5 p-4" role="alert">
+            <div class="d-flex">
+                <i class="bi bi-exclamation-octagon-fill fs-4 me-3"></i>
+                <div>
+                    <h5 class="alert-heading">Existing Record Found</h5>
+                    <p class="mb-2">A record for <strong>{{ existing_consent.data_processor.get_full_name }}</strong> already exists (ID: {{ existing_consent.consent_id }}). Would you like to proceed with a new entry?</p>
+                    <form method="POST" class="d-inline">
+                        {% csrf_token %}
+                        <input type="hidden" name="grant_consent" value="1">
+                        <input type="hidden" name="confirm_create" value="1">
+                        <input type="hidden" name="data_processor_id" value="{{ confirm_data.user_id }}">
+                        <input type="hidden" name="purpose" value="{{ confirm_data.purpose }}">
+                        <input type="hidden" name="expiry_date" value="{{ confirm_data.expiry_date }}">
+                        <input type="hidden" name="notes" value="{{ confirm_data.notes }}">
+                        {% for pid in confirm_data.permission_ids %}
+                        <input type="hidden" name="permission_ids" value="{{ pid }}">
+                        {% endfor %}
+                        <button type="submit" class="btn btn-warning btn-sm fw-bold me-2">Yes, create anyway</button>
+                    </form>
+                    <a href="{% url 'pages:consent_records' %}" class="btn btn-link btn-sm text-dark">Cancel</a>
                 </div>
             </div>
         </div>
-        {% empty %}
-        <div class="col-12">
-            <div class="alert alert-info text-center" role="alert">
-                No consent records found.
-            </div>
-        </div>
-        {% endfor %}
+        {% endif %}
+        {% endif %}
+        {% endwith %}
+
+        <!-- Records Grid -->
+        <div class="row g-4">
+            {% for consent in consents %}
+            <div class="col-xl-4 col-md-6">
+                <div class="card h-100 border border-light shadow-sm hover-shadow transition">
+                    <div class="card-header bg-white border-0 pt-4 px-4 d-flex justify-content-between align-items-center">
+                        <span class="badge bg-light text-dark border small fw-normal">{{ consent.consent_id }}</span>
+                        {% if consent.status == "active" %}
+                            <span class="badge rounded-pill bg-success-subtle text-success px-3">● Active</span>
+                        {% elif consent.status == "pending" %}
+                            <span class="badge rounded-pill bg-warning-subtle text-warning px-3">● Pending</span>
+                        {% else %}
+                            <span class="badge rounded-pill bg-light text-muted px-3">{{ consent.status|title }}</span>
+                        {% endif %}
+                    </div>
+
+                    <div class="card-body px-4">
+                        <div class="mb-3">
+                            <label class="text-muted small d-block mb-1">Subject</label>
+                            <p class="fw-bold mb-0 text-dark">{{ consent.patient.get_full_name|default:consent.patient.username }}</p>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <label class="text-muted small d-block mb-1">Processor</label>
+                                <p class="small mb-0 text-dark fw-semibold">{{ consent.data_processor.get_full_name|default:consent.data_processor.username }}</p>
+                            </div>
+                            <div class="col-6 text-end">
+                                <label class="text-muted small d-block mb-1">Role</label>
+                                <p class="small mb-0 text-muted">{{ consent.data_processor.role.get_name_display }}</p>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+    <label class="text-muted small d-flex align-items-center mb-2">
+        <i class="bi bi-tags me-1"></i> Authorized Categories
+    </label>
+    <div class="d-flex flex-wrap gap-2">
+        {% if consent.data_type %}
+            {# 1. Strip the brackets and quotes to get a clean string #}
+            {# 2. We use 'cut' to remove the JSON syntax characters #}
+            {% with clean_string=consent.data_type|cut:"["|cut:"]"|cut:"'"|cut:'"' %}
+
+                {# 3. Use the 'split' behavior of the 'for' loop (standard in most Django versions) #}
+                {# If your Django version doesn't support .split in templates, use a comma as a marker #}
+                {% for item in clean_string.split %}
+                    <span class="badge bg-white text-primary border border-primary-subtle fw-medium px-2 py-1">
+                        {# Remove the trailing comma if it exists and prettify the word #}
+                        {{ item|cut:","|clean_key }}
+                    </span>
+                {% endfor %}
+
+            {% endwith %}
+        {% else %}
+            <span class="text-muted small fst-italic">No categories specified</span>
+        {% endif %}
     </div>
+</div>
 
-    {% if is_paginated %}
-    <nav aria-label="Page navigation for consent records" class="mt-4">
-        <ul class="pagination justify-content-center">
-            {% if page_obj.has_previous %}
-                <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}" aria-label="Previous">
-                        <span aria-hidden="true">&laquo;</span>
-                    </a>
-                </li>
-            {% else %}
-                <li class="page-item disabled">
-                    <span class="page-link" aria-hidden="true">&laquo;</span>
-                </li>
-            {% endif %}
+                        <div class="bg-light rounded p-2 d-flex justify-content-between align-items-center">
+                            <span class="text-muted x-small">Expires:</span>
+                            <span class="small fw-semibold">{% if consent.expiry_date %}{{ consent.expiry_date|date:"M d, Y" }}{% else %}Never{% endif %}</span>
+                        </div>
+                    </div>
 
-            {% for i in paginator.page_range %}
-                {% if page_obj.number == i %}
-                    <li class="page-item active" aria-current="page">
-                        <span class="page-link">{{ i }}</span>
-                    </li>
-                {% else %}
-                    <li class="page-item">
-                        <a class="page-link" href="?page={{ i }}">{{ i }}</a>
-                    </li>
-                {% endif %}
+                    <div class="card-footer bg-white border-0 pb-4 px-4 d-grid gap-2">
+                        <a href="{% url 'consents:consent_details' consent.id %}" class="btn btn-outline-secondary btn-sm">Review Details</a>
+                        {% if consent.status == 'active' and consent.granted_permissions %}
+                        <a href="{% url 'consents:granted_records' consent.id %}" class="btn btn-primary btn-sm">Access Granted Data</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="col-12">
+                <div class="text-center py-5">
+                    <i class="bi bi-folder2-open display-1 text-light"></i>
+                    <p class="text-muted mt-3">No consent records found in the database.</p>
+                </div>
+            </div>
             {% endfor %}
+        </div>
 
-            {% if page_obj.has_next %}
-                <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.next_page_number }}" aria-label="Next">
-                        <span aria-hidden="true">&raquo;</span>
-                    </a>
-                </li>
-            {% else %}
-                <li class="page-item disabled">
-                    <span class="page-link" aria-hidden="true">&raquo;</span>
-                </li>
-            {% endif %}
-        </ul>
-    </nav>
-    {% endif %}
+        <!-- Pagination -->
+        {% if is_paginated %}
+        <nav class="mt-5">
+            <ul class="pagination justify-content-center">
+                {% if page_obj.has_previous %}
+                    <li class="page-item"><a class="page-link border-0 shadow-sm mx-1 rounded text-dark" href="?page={{ page_obj.previous_page_number }}">&larr;</a></li>
+                {% endif %}
+                <li class="page-item active"><span class="page-link border-0 shadow-sm mx-1 rounded">{{ page_obj.number }}</span></li>
+                {% if page_obj.has_next %}
+                    <li class="page-item"><a class="page-link border-0 shadow-sm mx-1 rounded text-dark" href="?page={{ page_obj.next_page_number }}">&rarr;</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    </div>
 </div>
 
 <script>
+// Keep existing script logic but update the UI selector names if changed
 document.addEventListener('DOMContentLoaded', function() {
     const userSelect = document.querySelector('select[name="data_processor_id"]');
     const permSection = document.getElementById('permissionSection');
     const permHint = document.getElementById('permHint');
 
-    // Available users with their roles
     const availableUsers = [
         {% for user in available_users %}
         {id: '{{ user.id }}', role: '{{ user.role.name }}'},
@@ -291,31 +254,18 @@ document.addEventListener('DOMContentLoaded', function() {
     if (userSelect) {
         userSelect.addEventListener('change', function() {
             const selectedId = this.value;
-
-            // Hide all permission sections first
-            document.querySelectorAll('.permission-role-section').forEach(function(el) {
-                el.style.display = 'none';
-            });
+            document.querySelectorAll('.permission-role-section').forEach(el => el.style.display = 'none');
 
             if (!selectedId) {
-                // No user selected, hide section and show hint
                 if (permSection) permSection.style.display = 'none';
-                if (permHint) {
-                    permHint.style.display = 'block';
-                    permHint.textContent = 'Select a data processor first to see available permissions.';
-                }
+                if (permHint) permHint.style.display = 'block';
                 return;
             }
 
-            // Find selected user's role
-            const selectedUser = availableUsers.find(function(u) { return u.id === selectedId; });
-
+            const selectedUser = availableUsers.find(u => u.id === selectedId);
             if (selectedUser) {
-                // Show permissions for this role
-                const roleSection = document.querySelector('.permission-role-section[data-role="' + selectedUser.role + '"]');
-                if (roleSection) {
-                    roleSection.style.display = 'block';
-                }
+                const roleSection = document.querySelector(`.permission-role-section[data-role="${selectedUser.role}"]`);
+                if (roleSection) roleSection.style.display = 'block';
                 if (permSection) permSection.style.display = 'block';
                 if (permHint) permHint.style.display = 'none';
             }

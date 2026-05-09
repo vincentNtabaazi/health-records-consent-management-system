@@ -1,5 +1,39 @@
 {% extends "base.html" %}
 {% load static %}
+{% block extra_css %}
+<style>
+    /* 1. Remove the blue glow from the Select2 container */
+    .select2-container--bootstrap-5.select2-container--focus .select2-selection,
+    .select2-container--bootstrap-5.select2-container--open .select2-selection {
+        border-color: #dee2e6 !important; /* Keep it neutral gray */
+        box-shadow: none !important;      /* Remove blue highlight */
+        outline: 0 !important;
+    }
+
+    /* 2. Remove blue highlight from the search input inside the dropdown */
+    .select2-search__field:focus {
+        border-color: #dee2e6 !important;
+        box-shadow: none !important;
+        outline: 0 !important;
+    }
+
+    /* 3. Ensure the selection looks professional and standard size */
+    .select2-container--bootstrap-5 .select2-selection {
+        min-height: 38px !important;
+        height: 38px !important;
+        display: flex !important;
+        align-items: center !important;
+        border: 1px solid #dee2e6 !important;
+        background-color: #ffffff !important;
+    }
+
+    /* 4. Customizing the 'Hover' state for better UX without the blue */
+    .select2-results__option--highlighted[aria-selected] {
+        background-color: #f8f9fa !important; /* Light gray instead of blue */
+        color: #212529 !important;            /* Dark text for contrast */
+    }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="container my-4">
@@ -95,19 +129,21 @@
                                value="{{ request.user.username }} ({{ request.user.role }})" disabled>
                     </div>
 
-                    <div class="mb-3">
-                        <label class="form-label">Patient</label>
-                        <input type="text" id="patientSearch" class="form-control mb-1"
-                               placeholder="Type to search patient...">
-                        <select name="patient_id" id="patientSelect" class="form-select" required>
-                            <option value="">-- Select patient --</option>
-                            {% for patient in patients %}
-                            <option value="{{ patient.id }}">
-                                {{ patient.user.first_name }} {{ patient.user.last_name }}
-                                {% if patient.nhs_number %}({{ patient.nhs_number }}){% endif %}
-                            </option>
-                            {% endfor %}
-                        </select>
+                    <div class="mb-4">
+                        <label class="form-label">
+                            Patient Selection
+                        </label>
+                        <div class="shadow-sm">
+                            <select name="patient_id" id="patientSelect" class="form-select border-0" required>
+                                <option></option> <!-- Empty option for placeholder -->
+                                {% for patient in patients %}
+                                <option value="{{ patient.id }}">
+                                    {{ patient.user.first_name }} {{ patient.user.last_name }}
+                                    {% if patient.nhs_number %}(NHS: {{ patient.nhs_number }}){% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
                     </div>
 
                     <div class="mb-3">
@@ -238,6 +274,12 @@
                     <input type="hidden" name="mode" value="batch_search">
 
                     <div class="mb-3">
+                        <label class="form-label">Requester</label>
+                        <input type="text" class="form-control"
+                               value="{{ request.user.username }} ({{ request.user.role }})" disabled>
+                    </div>
+
+                    <div class="mb-3">
                         <label class="form-label">Data Type</label>
                         <select name="resource_type" class="form-select" required>
                             <option value="">-- Select data type --</option>
@@ -268,57 +310,6 @@
                 </form>
             </div>
         </div>
-
-        {% if matched_patients is not None %}
-        <div class="col-md-7 mb-4">
-            <div class="card p-4">
-                <h6 class="fw-semibold mb-3">
-                    Step 2: Select Patients
-                    <span class="badge bg-secondary ms-2">{{ matched_patients.count }} found</span>
-                </h6>
-
-                {% if matched_patients %}
-                <form method="POST">
-                    {% csrf_token %}
-                    <input type="hidden" name="mode" value="batch_submit">
-                    <input type="hidden" name="resource_type" value="{{ selected_resource_type }}">
-                    <input type="hidden" name="purpose" value="{{ batch_purpose }}">
-
-                    <div class="mb-3">
-                        <div class="form-check mb-2">
-                            <input class="form-check-input" type="checkbox" id="selectAll">
-                            <label class="form-check-label fw-semibold" for="selectAll">
-                                Select All
-                            </label>
-                        </div>
-                        <hr>
-                        {% for patient in matched_patients %}
-                        <div class="form-check mb-2">
-                            <input class="form-check-input patient-checkbox"
-                                   type="checkbox" name="patient_ids"
-                                   value="{{ patient.id }}" id="patient_{{ patient.id }}">
-                            <label class="form-check-label" for="patient_{{ patient.id }}">
-                                {{ patient.user.first_name }} {{ patient.user.last_name }}
-                                {% if patient.nhs_number %}
-                                <small class="text-muted">({{ patient.nhs_number }})</small>
-                                {% endif %}
-                            </label>
-                        </div>
-                        {% endfor %}
-                    </div>
-
-                    <button type="submit" class="btn btn-success w-100">
-                        Submit Batch Access Requests
-                    </button>
-                </form>
-                {% else %}
-                <div class="alert alert-warning">
-                    No patients found with <strong>{{ selected_resource_type }}</strong> records.
-                </div>
-                {% endif %}
-            </div>
-        </div>
-        {% endif %}
     </div>
 
     {% if batch_results %}
@@ -337,7 +328,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {% for r in batch_results %}
+                            {% for r in accepted_requests %}
                             <tr>
                                 <td>{{ r.patient }}</td>
                                 <td>
@@ -364,9 +355,14 @@
                 </div>
                 <div class="mt-3">
                     {% with role=request.user.role.name %}
-                    {% if role == 'researcher' or role == 'regulator' or request.user.is_staff %}
+                    {% if role == 'researcher' or role == 'processor' or role == 'regulator' or request.user.is_staff %}
                     <a href="{% url 'pages:compliance_dashboard' %}" class="btn btn-outline-primary btn-sm">
                         View Compliance Dashboard
+                    </a>
+
+                    <a href="{% url 'consents:download_allowed_data_csv' %}?requestor={{request.user.id}}&datatype={{resource_type}}&purpose={{purpose}}"
+                       class="btn btn-success btn-sm px-3 shadow-sm">
+                        <i class="bi bi-file-earmark-spreadsheet me-2"></i> Download CSV
                     </a>
                     {% endif %}
                     {% endwith %}
@@ -402,6 +398,18 @@ if (selectAll) {
         });
     });
 }
+</script>
+<script>
+$(document).ready(function() {
+    $('#patientSelect').select2({
+        theme: 'bootstrap-5',
+        placeholder: 'Search name',
+        allowClear: true,
+        width: '100%',
+        // This ensures the dropdown matches the "White Background" aesthetic
+        dropdownCssClass: 'select2--white-bg',
+    });
+});
 </script>
 {% endwith %}
 {% endblock %}

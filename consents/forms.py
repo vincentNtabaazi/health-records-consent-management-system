@@ -2,7 +2,7 @@ from collections import OrderedDict
 
 from django import forms
 
-from consents.models import Consent
+from consents.models import Consent, AccessRequest
 from patients.models import Patient, PatientPermission
 from users.models import RolePermission
 from services.odrl import group_permissions_by_category, infer_data_category_from_permission, prettify_permission
@@ -23,7 +23,7 @@ class ConsentRequestForm(forms.ModelForm):
         fields = ['purpose', 'expiry_date', 'notes']
         widgets = {
             'expiry_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
-            'purpose': forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
+            'purpose': forms.Select(choices=AccessRequest.PURPOSE_CHOICES,attrs={'class': 'form-select'}),
             'notes': forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
         }
 

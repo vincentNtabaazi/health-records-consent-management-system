@@ -76,3 +76,4 @@ class PatientPermission(models.Model):
     """Links a RolePermission specifically to a Patient if needed"""
     role_permission = models.ForeignKey(RolePermission, on_delete=models.CASCADE)
     patient = models.ForeignKey(Patient, on_delete=models.CASCADE)
+    data_category = models.CharField(max_length=100, choices=MedicalRecord.DATA_CATEGORY_CHOICES, null=True, blank=True)

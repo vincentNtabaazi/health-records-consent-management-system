@@ -1,20 +1,36 @@
 import csv
+
+from django.contrib.auth.models import AbstractUser
 from django.http import HttpResponse
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.db.models import Count, Q
 from django.shortcuts import render
+from django.shortcuts import render, redirect
 
 from consents.models import Consent
 from patients.models import MedicalRecord, Patient
 from users.models import User, Role, CustomPermission
 from services.odrl import infer_data_category_from_permission
 from datetime import datetime
+from django.db.models import Count
+from services.datasetGenerator import generate_dataset
+from services.generate_medical_records import populate_medical_records, generate_medical_permissions
+from users.models import User
+from users.utils import get_role
+from django.contrib import messages
+from consents.models import AccessRequest, DecisionLog
+from services.policy_engine import evaluate_access
+from services.compliance_checker import check_violations
+from django.utils import timezone
+from datetime import timedelta
+
 
 
 @login_required(login_url='users:login_view')
 def home(request):
-    return render(request, 'pages/home.html')
+    role = get_role(request)
+    return render(request, 'pages/home.html', locals())
 
 
 @login_required(login_url='users:login_view')
@@ -59,8 +75,10 @@ def data_subjects(request):
     try:
         data_subjects_list = paginator.page(page)
     except PageNotAnInteger:
+        # If page is not an integer, deliver first page.
         data_subjects_list = paginator.page(1)
     except EmptyPage:
+        # If page is out of range (e.g. 9999), deliver last page of results.
         data_subjects_list = paginator.page(paginator.num_pages)
 
     query_params = request.GET.copy()
@@ -117,12 +135,18 @@ def policies(request):
 @login_required(login_url='users:login_view')
 def dashboard_view(request):
     all_consents = Consent.objects.all()
+    all_patients = Patient.objects.all()
+    last_30_days = timezone.now() - timedelta(days=30)
+
     context = {
         'consent_total': all_consents.count(),
         'consent_active': all_consents.filter(status='active').count(),
         'consent_pending': all_consents.filter(status='pending').count(),
         'consent_withdrawn': all_consents.filter(status='withdrawn').count(),
+        'consent_denied': all_consents.filter(status='denied').count(),
         'recent_consents': all_consents.select_related('patient', 'data_processor')[:5],
+        'all_patients': all_patients.count(),
+        'new_patients_last_30_days': all_patients.filter(user__created_at__gte=last_30_days).count(),
         'recent_patients': Patient.objects.select_related('user').order_by('-id')[:5],
     }
     return render(request, 'pages/dashboard.html', context)
@@ -153,6 +177,8 @@ def medical_records(request):
     context = {
         'medical_records': page_obj,
         'category_counts': category_counts_dict,
+        'paginator':paginator,
+        'is_paginated': page_obj.has_other_pages(),
     }
     return render(request, 'pages/medical_records.html', context)
 
@@ -222,6 +248,7 @@ def build_requester_scoped_compliance_report(logs):
 @login_required(login_url='users:login_view')
 def access_request_view(request):
     patients = Patient.objects.select_related('user').all()
+    batch_mode = request.GET.get("mode") == "batch"
 
     if request.method == 'POST':
         patient_id = request.POST.get('patient_id')
@@ -229,28 +256,62 @@ def access_request_view(request):
         purpose = request.POST.get('purpose')
         action = request.POST.get('action', 'read')
 
-        try:
-            patient = Patient.objects.get(id=patient_id)
-            log = evaluate_access(
-                requester=request.user,
-                patient=patient,
-                resource_type=resource_type,
-                purpose=purpose,
-                action=action,
-            )
+        if not batch_mode:
+            try:
+                patient = Patient.objects.get(id=patient_id)
+                log = evaluate_access(
+                    requester=request.user,
+                    patient=patient,
+                    resource_type=resource_type,
+                    purpose=purpose,
+                    action=action,
+                )
+                context = {
+                    'patients': patients,
+                    'result': log,
+                    'decision': log.decision,
+                    'reason': log.reason,
+                    'submitted': True,
+                }
+                return render(request, 'pages/access_request.html', context)
+
+            except Patient.DoesNotExist:
+                messages.error(request, 'Patient not found.')
+        else:
+            accepted_requests = []
+            for patient in patients:
+                log = evaluate_access(
+                    requester=request.user,
+                    patient=patient,
+                    resource_type=resource_type,
+                    purpose=purpose,
+                    action=action,
+                )
+                if log.decision == 'allow':
+                    accepted_requests.append({
+                        "result": log,
+                        "patient": patient,
+                        "decision": log.decision,
+                        "reason": log.reason,
+                    })
+
             context = {
                 'patients': patients,
-                'result': log,
-                'decision': log.decision,
-                'reason': log.reason,
-                'submitted': True,
+                'batch_results': True,
+                'accepted_requests': accepted_requests,
+                'batch_mode': batch_mode,
+                'purpose':purpose,
+                'resource_type':resource_type
             }
             return render(request, 'pages/access_request.html', context)
 
-        except Patient.DoesNotExist:
-            messages.error(request, 'Patient not found.')
 
-    return render(request, 'pages/access_request.html', {'patients': patients})
+    context = {
+        'patients': patients,
+        'batch_mode': batch_mode,
+    }
+
+    return render(request, 'pages/access_request.html', context)
 
 
 def get_visible_decision_logs_for_user(user):
@@ -489,7 +550,7 @@ def my_data_view(request):
     except Patient.DoesNotExist:
         messages.error(request, 'Patient profile not found.')
         return redirect('pages:dashboard_view')
-    
+
     # Auto-expire any consents that have passed their expiry date
     auto_expire_consents()
 

@@ -1,3 +1,8 @@
+from django.utils import timezone
+from django.db import models
+from users.models import User
+from patients.models import MedicalRecord
+from users.models import User, Role
 from django.db import models, transaction
 from django.utils import timezone
 
@@ -25,6 +30,11 @@ class Consent(models.Model):
         (CONSENT_TYPE_WITHDRAWN, 'Withdrawn / Revoked'),
     ]
 
+    PURPOSE_CHOICES = [
+        ('treatment', 'Treatment'), ('research', 'Research'),
+        ('audit', 'Audit'), ('emergency', 'Emergency'), ('insurance', 'Insurance'),
+    ]
+
     STATUS_CHOICES = [
         ('active', 'Active'),
         ('withdrawn', 'Withdrawn'),
@@ -42,8 +52,8 @@ class Consent(models.Model):
     consent_id = models.CharField(max_length=100, unique=True, editable=False)
     patient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='consents_as_patient')
     data_processor = models.ForeignKey(User, on_delete=models.CASCADE, related_name='consents_processed')
-    data_type = models.CharField(max_length=255, blank=True)
-    purpose = models.TextField()
+    data_type = models.JSONField(blank=True, default=list)
+    purpose = models.CharField(max_length=100, choices=PURPOSE_CHOICES, default='research')
     consent_type = models.CharField(max_length=50, choices=CONSENT_TYPE_CHOICES, default=CONSENT_TYPE_MANUAL_REVIEW)
     policy_evaluation_result = models.CharField(max_length=50, choices=POLICY_EVALUATION_CHOICES, default='n/a')
     status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='pending')
@@ -73,6 +83,7 @@ class Consent(models.Model):
 
     @property
     def requested_permission_objects(self):
+        print(self)
         return list(CustomPermission.objects.filter(id__in=self.requested_permissions).order_by('name'))
 
     @property

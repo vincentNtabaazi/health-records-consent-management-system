@@ -106,28 +106,14 @@
        </li>
        {% endif %}
 
-{% if role == 'processor' or role == 'researcher' or role == 'insurance_agent' or role == 'regulator' or request.user.is_staff or request.user.is_superuser %}
-<li class="nav-item">
-  <a class="nav-link {% if request.resolver_match.url_name == 'compliance_dashboard' %}active{% endif %}"
-     href="{% url 'pages:compliance_dashboard' %}">
-    <i class="bi bi-clipboard-data me-1"></i> Compliance
-  </a>
-</li>
-{% endif %}
-
-
-
-        {% if role == 'processor' or role == 'researcher' or role == 'insurance_agent' %}
+        {% if role == 'processor' or role == 'researcher' or role == 'insurance_agent' or role == 'regulator' or request.user.is_staff or request.user.is_superuser %}
         <li class="nav-item">
-          <a class="nav-link {% if request.resolver_match.url_name == 'access_history' %}active{% endif %}"
-             href="{% url 'pages:access_history' %}">
-            <i class="bi bi-clock-history me-1"></i> Access History
+          <a class="nav-link {% if request.resolver_match.url_name == 'compliance_dashboard' %}active{% endif %}"
+            href="{% url 'pages:compliance_dashboard' %}">
+            <i class="bi bi-clipboard-data me-1"></i> Compliance
           </a>
         </li>
         {% endif %}
-
-
-
         {% if request.user.is_staff or request.user.is_superuser %}
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle
