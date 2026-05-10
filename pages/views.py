@@ -1,29 +1,23 @@
 import csv
+from datetime import datetime, timedelta
 
-from django.contrib.auth.models import AbstractUser
-from django.http import HttpResponse
-from django.contrib.auth.decorators import login_required
-from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
-from django.db.models import Count, Q
-from django.shortcuts import render
-from django.shortcuts import render, redirect
-
-from consents.models import Consent
-from patients.models import MedicalRecord, Patient
-from users.models import User, Role, CustomPermission
-from services.odrl import infer_data_category_from_permission
-from datetime import datetime
-from django.db.models import Count
-from services.datasetGenerator import generate_dataset
-from services.generate_medical_records import populate_medical_records, generate_medical_permissions
-from users.models import User
-from users.utils import get_role
 from django.contrib import messages
-from consents.models import AccessRequest, DecisionLog
-from services.policy_engine import evaluate_access
-from services.compliance_checker import check_violations
+from django.contrib.auth.decorators import login_required
+from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
+from django.db.models import Count, Q
+from django.http import HttpResponse
+from django.shortcuts import redirect, render
 from django.utils import timezone
-from datetime import timedelta
+
+from consents.models import Consent, DecisionLog
+from patients.models import MedicalRecord, Patient
+from services.compliance_checker import (
+    auto_expire_consents,
+    check_violations,
+    get_expiring_consents_for_patient,
+)
+from services.policy_engine import evaluate_access
+from users.utils import get_role
 
 
 
@@ -35,6 +29,20 @@ def home(request):
 
 @login_required(login_url='users:login_view')
 def data_subjects(request):
+    role = getattr(getattr(request.user, 'role', None), 'name', None)
+
+    if role == 'subject':
+        messages.error(request, 'Patients cannot access the data subjects directory.')
+        return redirect('pages:my_data')
+
+    if not (
+        role in ['processor', 'researcher', 'insurance_agent', 'regulator']
+        or request.user.is_staff
+        or request.user.is_superuser
+    ):
+        messages.error(request, 'You are not allowed to access data subjects.')
+        return redirect('pages:dashboard_view')
+    
     search_query = (request.GET.get('q') or '').strip()
     selected_organization = (request.GET.get('organization') or '').strip()
 
@@ -99,10 +107,11 @@ def data_subjects(request):
 @login_required(login_url='users:login_view')
 def consent_records(request):
     consent_list = Consent.objects.select_related('patient', 'data_processor')
+    role = getattr(getattr(request.user, 'role', None), 'name', None)
 
-    if request.user.is_staff or request.user.is_superuser:
+    if request.user.is_staff or request.user.is_superuser or role == 'regulator':
         consent_list = consent_list.all()
-    elif getattr(getattr(request.user, 'role', None), 'name', None) == 'subject':
+    elif role == 'subject':
         consent_list = consent_list.filter(patient=request.user)
     else:
         consent_list = consent_list.filter(data_processor=request.user)
@@ -129,6 +138,16 @@ def consent_records(request):
 
 @login_required(login_url='users:login_view')
 def policies(request):
+    role = getattr(getattr(request.user, 'role', None), 'name', None)
+
+    if not (
+        role == 'regulator'
+        or request.user.is_staff
+        or request.user.is_superuser
+    ):
+        messages.error(request, 'You are not allowed to view governance policies.')
+        return redirect('pages:dashboard_view')
+
     return render(request, 'pages/policies.html')
 
 
@@ -154,18 +173,45 @@ def dashboard_view(request):
 
 @login_required(login_url='users:login_view')
 def medical_records(request):
-    all_records = MedicalRecord.objects.select_related(
-        'patient',
-        'patient__user'
-    ).order_by('-created_at')
+    role = getattr(getattr(request.user, 'role', None), 'name', None)
+    is_global_viewer = request.user.is_staff or request.user.is_superuser or role == 'regulator'
+
+    if not (role == 'subject' or is_global_viewer):
+        messages.error(request, 'You are not allowed to access medical records.')
+        return redirect('pages:dashboard_view')
+
+    if role == 'subject':
+        try:
+            patient = Patient.objects.get(user=request.user)
+            all_records = MedicalRecord.objects.select_related(
+                'patient',
+                'patient__user'
+            ).filter(patient=patient).order_by('-created_at')
+            page_title = 'My Medical Records'
+        except Patient.DoesNotExist:
+            all_records = MedicalRecord.objects.none()
+            page_title = 'My Medical Records'
+            messages.error(request, 'Patient profile not found.')
+    else:
+        all_records = MedicalRecord.objects.select_related(
+            'patient',
+            'patient__user'
+        ).order_by('-created_at')
+        page_title = 'Medical Records'
 
     paginator = Paginator(all_records, 10)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
-    category_counts = MedicalRecord.objects.values('data_category').annotate(
-        count=Count('data_category')
-    )
+    if role == 'subject':
+        category_counts = all_records.values('data_category').annotate(
+            count=Count('data_category')
+        )
+    else:
+        category_counts = MedicalRecord.objects.values('data_category').annotate(
+            count=Count('data_category')
+        )
+
     category_counts_dict = {
         dict(MedicalRecord.DATA_CATEGORY_CHOICES).get(
             item['data_category'],
@@ -177,16 +223,11 @@ def medical_records(request):
     context = {
         'medical_records': page_obj,
         'category_counts': category_counts_dict,
-        'paginator':paginator,
+        'paginator': paginator,
         'is_paginated': page_obj.has_other_pages(),
+        'page_title': page_title,
     }
     return render(request, 'pages/medical_records.html', context)
-
-
-from django.contrib import messages
-from consents.models import AccessRequest, DecisionLog
-from services.policy_engine import evaluate_access
-from services.compliance_checker import check_violations, get_expiring_consents_for_patient, auto_expire_consents
 
 
 def build_requester_scoped_compliance_report(logs):
@@ -247,6 +288,16 @@ def build_requester_scoped_compliance_report(logs):
 
 @login_required(login_url='users:login_view')
 def access_request_view(request):
+    role = getattr(getattr(request.user, 'role', None), 'name', None)
+
+    if not (
+        role in ['processor', 'researcher', 'insurance_agent']
+        or request.user.is_staff
+        or request.user.is_superuser
+    ):
+        messages.error(request, 'You are not allowed to submit access requests.')
+        return redirect('pages:dashboard_view')
+
     patients = Patient.objects.select_related('user').all()
     batch_mode = request.GET.get("mode") == "batch"
 
@@ -349,6 +400,13 @@ def compliance_dashboard_view(request):
         messages.info(request, 'Patients can view their access transparency report in My Data.')
         return redirect('pages:my_data')
 
+    if not (
+        role in ['processor', 'researcher', 'insurance_agent']
+        or is_global_auditor
+    ):
+        messages.error(request, 'You are not allowed to access the compliance dashboard.')
+        return redirect('pages:dashboard_view')
+
     selected_patient = None
     report = None
 
@@ -366,19 +424,6 @@ def compliance_dashboard_view(request):
         patients = Patient.objects.select_related('user').all()
         dashboard_scope = 'global'
         scope_description = 'You can inspect all access decisions and compliance events across the system.'
-    elif role == 'subject':
-        try:
-            subject_patient = Patient.objects.get(user=request.user)
-            visible_logs = base_logs.filter(access_request__patient=subject_patient)
-            patients = Patient.objects.filter(id=subject_patient.id).select_related('user')
-            selected_patient = subject_patient
-            dashboard_scope = 'subject'
-            scope_description = 'You can only view access decisions related to your own health data.'
-        except Patient.DoesNotExist:
-            visible_logs = base_logs.none()
-            patients = Patient.objects.none()
-            dashboard_scope = 'subject'
-            scope_description = 'No patient profile is linked to your account.'
     else:
         visible_logs = base_logs.filter(access_request__requester=request.user)
         patient_ids = visible_logs.values_list('access_request__patient_id', flat=True).distinct()
@@ -392,7 +437,7 @@ def compliance_dashboard_view(request):
             candidate_patient = patients.get(id=patient_id)
             selected_patient = candidate_patient
 
-            if is_global_auditor or role == 'subject':
+            if is_global_auditor:
                 report = check_violations(selected_patient)
             else:
                 patient_logs = visible_logs.filter(access_request__patient=selected_patient)
@@ -401,11 +446,11 @@ def compliance_dashboard_view(request):
         except Patient.DoesNotExist:
             messages.error(request, 'You are not allowed to audit this patient or the patient was not found.')
 
-    if role == 'subject' and selected_patient and report is None:
-        report = check_violations(selected_patient)
 
     decision_filter = request.GET.get('decision', 'all')
     compliance_filter = request.GET.get('compliance', 'all')
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
 
     filtered_logs = visible_logs
 
@@ -415,6 +460,12 @@ def compliance_dashboard_view(request):
     if compliance_filter in ['compliant', 'non_compliant']:
         filtered_logs = filtered_logs.filter(compliance_status=compliance_filter)
 
+    if start_date:
+        filtered_logs = filtered_logs.filter(checked_at__date__gte=start_date)
+
+    if end_date:
+        filtered_logs = filtered_logs.filter(checked_at__date__lte=end_date)
+    
     recent_logs = filtered_logs.order_by('-checked_at')[:20]
 
     total_visible_logs = visible_logs.count()
@@ -438,35 +489,78 @@ def compliance_dashboard_view(request):
         'denied_count': denied_count,
         'redacted_count': redacted_count,
         'non_compliant_count': non_compliant_count,
+        'start_date': start_date,
+        'end_date': end_date,
     }
     return render(request, 'pages/compliance_dashboard.html', context)
 
 
 @login_required(login_url='users:login_view')
 def my_data_view(request):
-    """Show a subject who accessed their data and their consent records."""
-    patient = Patient.objects.filter(user=request.user).first()
+    # Only for subject role
+    role = getattr(getattr(request.user, 'role', None), 'name', None)
+    if role != 'subject':
+        messages.error(request, 'This page is only accessible to patients.')
+        return redirect('pages:dashboard_view')
 
-    if patient:
-        access_logs = (
-            DecisionLog.objects
-            .select_related(
-                'access_request',
-                'access_request__requester',
-                'access_request__requester__role',
-                'matched_consent',
-            )
-            .filter(access_request__patient=patient)
-            .order_by('-checked_at')
-        )
-    else:
-        access_logs = DecisionLog.objects.none()
-        messages.info(
-            request,
-            'No subject profile was found for your account yet.'
-        )
+    # Get patient profile
+    try:
+        patient = Patient.objects.get(user=request.user)
+    except Patient.DoesNotExist:
+        messages.error(request, 'Patient profile not found.')
+        return redirect('pages:dashboard_view')
+
+    # Auto-expire any consents that have passed their expiry date
+    auto_expire_consents()
+
+    # Find consents expiring within the next 7 days
+    expiring_consents = get_expiring_consents_for_patient(request.user, days_ahead=7)
+
+    # Who accessed my data
+    access_logs = DecisionLog.objects.filter(
+        access_request__patient=patient
+    ).select_related(
+        'access_request',
+        'access_request__requester',
+        'access_request__requester__role',
+        'matched_consent',
+    ).order_by('-checked_at')
+
+    my_consents = (
+        Consent.objects
+        .select_related('data_processor', 'data_processor__role')
+        .filter(patient=request.user)
+        .order_by('-created_date')
+    )
+
+    context = {
+        'access_logs': access_logs,
+        'allow_count': access_logs.filter(decision='allow').count(),
+        'redact_count': access_logs.filter(decision='limited').count(),
+        'deny_count': access_logs.filter(decision='deny').count(),
+        'my_consents': my_consents,
+        'expiring_consents': expiring_consents,
+    }
+    return render(request, 'pages/my_data.html', context)
+
+
+
 @login_required(login_url='users:login_view')
 def export_audit_logs_csv(request):
+    role = getattr(getattr(request.user, 'role', None), 'name', None)
+    is_global_auditor = request.user.is_staff or request.user.is_superuser or role == 'regulator'
+
+    if role == 'subject':
+        messages.error(request, 'Patients cannot export compliance audit logs.')
+        return redirect('pages:my_data')
+
+    if not (
+        role in ['processor', 'researcher', 'insurance_agent']
+        or is_global_auditor
+    ):
+        messages.error(request, 'You are not allowed to export audit logs.')
+        return redirect('pages:dashboard_view')
+
     logs = get_visible_decision_logs_for_user(request.user).order_by('-checked_at')
 
     decision_filter = request.GET.get('decision', 'all')
@@ -534,55 +628,3 @@ def export_audit_logs_csv(request):
         ])
 
     return response
-
-
-@login_required(login_url='users:login_view')
-def my_data_view(request):
-    # Only for subject role
-    role = getattr(getattr(request.user, 'role', None), 'name', None)
-    if role != 'subject':
-        messages.error(request, 'This page is only accessible to patients.')
-        return redirect('pages:dashboard_view')
-
-    # Get patient profile
-    try:
-        patient = Patient.objects.get(user=request.user)
-    except Patient.DoesNotExist:
-        messages.error(request, 'Patient profile not found.')
-        return redirect('pages:dashboard_view')
-
-    # Auto-expire any consents that have passed their expiry date
-    auto_expire_consents()
-
-    # Find consents expiring within the next 7 days
-    expiring_consents = get_expiring_consents_for_patient(request.user, days_ahead=7)
-
-    # Who accessed my data
-    access_logs = DecisionLog.objects.filter(
-        access_request__patient=patient
-    ).select_related(
-        'access_request',
-        'access_request__requester',
-        'access_request__requester__role',
-        'matched_consent',
-    ).order_by('-checked_at')
-
-    my_consents = (
-        Consent.objects
-        .select_related('data_processor', 'data_processor__role')
-        .filter(patient=request.user)
-        .order_by('-created_date')
-    )
-
-    context = {
-        'access_logs': access_logs,
-        'allow_count': access_logs.filter(decision='allow').count(),
-        'redact_count': access_logs.filter(decision='limited').count(),
-        'deny_count': access_logs.filter(decision='deny').count(),
-        'my_consents': my_consents,
-        'allow_count':   access_logs.filter(decision='allow').count(),
-        'deny_count':    access_logs.filter(decision='deny').count(),
-        'redact_count':  access_logs.filter(decision='limited').count(),
-        'expiring_consents': expiring_consents,
-    }
-    return render(request, 'pages/my_data.html', context)
