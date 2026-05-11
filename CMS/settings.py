@@ -32,7 +32,7 @@ ALLOWED_HOSTS = []
 
 INSTALLED_APPS = [
     # My apps
-    'users',
+    'users.apps.UsersConfig',
     'pages',
     'consents',
     'patients',
@@ -83,7 +83,7 @@ WSGI_APPLICATION = 'CMS.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'cms',
+        'NAME': 'cms_backup',
         'USER': 'root',
         'PASSWORD': 'Great2025',
         'HOST': 'localhost',

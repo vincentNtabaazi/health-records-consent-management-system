@@ -1,7 +1,6 @@
 # services/policy_engine.py
 
 from django.utils import timezone
-
 from patients.models import ConsentPolicy
 from users.models import RolePermission
 from services.odrl import evaluate_odrl_payload
@@ -132,7 +131,7 @@ def _apply_governance_rules(requester, patient, resource_type, purpose):
         consent = Consent.objects.filter(
             patient=patient.user,
             data_processor=requester,
-            data_type__icontains=resource_type,
+            data_type__contains=[resource_type],
             purpose=purpose,
             status='active',
         ).order_by('-created_date').first()
@@ -259,3 +258,8 @@ def check_compliance(patient):
     """
     from services.compliance_checker import check_violations
     return check_violations(patient)
+
+
+def data_anonymity(patient):
+
+    return None

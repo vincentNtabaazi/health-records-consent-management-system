@@ -337,8 +337,8 @@
                 </div>
 
                 <h6 class="text-muted text-uppercase small mb-2">Patient Details</h6>
-                <p class="mb-1"><strong>Date Born:</strong> {{ patient.date_of_birth|date:"M d, Y" }}</p>
-                <p class="mb-1"><strong>Contact:</strong> {{ patient.phone_number|default:"—" }}</p>
+                <p class="mb-1"><strong>Date of Birth:</strong> {{ patient.user.date_of_birth|date:"M d, Y" }}( {{patient.user.age}} years )</p>
+                <p class="mb-1"><strong>Postal Address:</strong> {{ patient.user.postal_code|default:"—" }}</p>
             </div>
         </div>
 
