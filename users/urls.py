@@ -6,6 +6,7 @@ from .views import (
     profile_view,
     change_password_view,
     delegation_view,
+    delegate_requests_view,
     user_management_view,
     toggle_user_active_view,
     change_user_role_view,
@@ -26,6 +27,8 @@ urlpatterns = [
     path("profile/", profile_view, name="profile_view"),
     path("profile/password/", change_password_view, name="change_password_view"),
     path("profile/delegate/", delegation_view, name="delegation_view"),
+    path("profile/delegate-requests/", delegate_requests_view, name="delegate_requests_view"),
+    path("profile/delegation/", delegation_view, name="delegation_view_alt"),
 
     # ── admin: user management ────────────────
     path("admin/users/", user_management_view, name="user_management_view"),
