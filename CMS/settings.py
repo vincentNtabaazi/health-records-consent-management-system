@@ -83,7 +83,7 @@ WSGI_APPLICATION = 'CMS.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'cms_2',
+        'NAME': 'cms_backup',
         'USER': 'root',
         'PASSWORD': 'Great2025',
         'HOST': 'localhost',

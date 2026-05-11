@@ -1,11 +1,13 @@
-from django.contrib import messages
+from django.db.models import Q
+from django.utils import timezone
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
+from django.contrib import messages
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.hashers import make_password
 
 from django.contrib.auth import get_user_model
-from .models import Role, CustomPermission, RolePermission
+from .models import Role, CustomPermission, RolePermission, Delegation, DelegationLog
 from .forms import SignupForm, LoginForm, ProfileForm, ChangePasswordForm, DelegateForm
 from .utils import authenticate
 from django.core.mail import send_mail
@@ -163,36 +165,208 @@ def change_password_view(request):
 
 @login_required(login_url="users:login_view")
 def delegation_view(request):
-    """Let users with can_delegate=True assign or remove a delegate."""
-    if not request.user.can_delegate:
-        messages.error(request, "You do not have delegation rights.", extra_tags="danger")
-        return redirect("users:profile_view")
+    """Data subject delegation management page."""
+    # Check: only subject role can access
+    user_role = getattr(getattr(request.user, 'role', None), 'name', None)
+    if user_role != 'subject':
+        messages.error(request, 'Only data subjects can access this page.', extra_tags='danger')
+        return redirect('pages:home')
 
-    form = DelegateForm(
-        request.POST or None,
-        initial={"delegate_to": request.user.delegated_to},
-    )
+    # Get current delegation
+    current_delegation = Delegation.objects.filter(
+        data_subject=request.user,
+        status__in=['pending', 'accepted', 'active']
+    ).order_by('-created_at').first()
 
-    if request.method == "POST":
-        if form.is_valid():
-            delegate = form.cleaned_data["delegate_to"]
-            if delegate and delegate == request.user:
-                form.add_error("delegate_to", "You cannot delegate to yourself.")
-            else:
-                request.user.delegated_to = delegate
-                request.user.save(update_fields=["delegated_to"])
-                if delegate:
-                    messages.success(request, f"Authority delegated to {delegate.get_full_name()}.")
-                else:
-                    messages.success(request, "Delegation removed.")
-                return redirect("users:profile_view")
+    candidates = []
+    search_query = ''
 
-    return render(request, "users/delegation.html", {"form": form})
+    if request.method == 'POST':
+        action = request.POST.get('action')
+
+        # === Search ===
+        if action == 'search':
+            search_query = request.POST.get('query', '').strip()
+            candidates = []
+            if search_query:
+                candidates = list(User.objects.filter(
+                    role__name='subject',
+                    is_active=True
+                ).exclude(
+                    id=request.user.id
+                ).filter(
+                    Q(username__icontains=search_query) |
+                    Q(first_name__icontains=search_query) |
+                    Q(last_name__icontains=search_query) |
+                    Q(email__icontains=search_query)
+                ).distinct()[:20])
+
+            return render(request, 'users/delegation.html', {
+                'current_delegation': current_delegation,
+                'candidates': candidates,
+                'search_query': search_query,
+            })
+
+        # === Create/Replace ===
+        if action in ('create', 'replace'):
+            proxy_id = request.POST.get('proxy_id')
+
+            # Check 1: cannot delegate to self
+            if str(proxy_id) == str(request.user.id):
+                messages.error(request, 'You cannot delegate to yourself.', extra_tags='danger')
+                return redirect('users:delegation_view')
+
+            # Check 2: proxy must be another subject
+            proxy = User.objects.filter(
+                id=proxy_id,
+                role__name='subject',
+                is_active=True
+            ).first()
+
+            if not proxy:
+                messages.error(request, 'Please select a valid proxy.', extra_tags='danger')
+                return redirect('users:delegation_view')
+
+            if action == 'replace' and current_delegation:
+                # Mark old delegation as revoked
+                old_proxy_name = current_delegation.proxy.get_full_name()
+                current_delegation.status = 'revoked'
+                current_delegation.revoked_at = timezone.now()
+                current_delegation.save(update_fields=['status', 'revoked_at'])
+
+                new_proxy_name = proxy.get_full_name()
+                DelegationLog.objects.create(
+                    delegation=current_delegation,
+                    action='replaced',
+                    performed_by=request.user,
+                    notes=f'{old_proxy_name} -> {new_proxy_name}'
+                )
+
+            # Create new delegation
+            new_delegation = Delegation.objects.create(
+                data_subject=request.user,
+                proxy=proxy,
+                status='pending'
+            )
+
+            DelegationLog.objects.create(
+                delegation=new_delegation,
+                action='created',
+                performed_by=request.user,
+                notes=f'Delegated to {proxy.get_full_name()}'
+            )
+
+            messages.success(request, 'Proxy set. Pending activation.')
+            return redirect('users:delegation_view')
+
+        # === Revoke ===
+        if action == 'revoke' and current_delegation:
+            current_delegation.status = 'revoked'
+            current_delegation.revoked_at = timezone.now()
+            current_delegation.save(update_fields=['status', 'revoked_at'])
+
+            DelegationLog.objects.create(
+                delegation=current_delegation,
+                action='revoked',
+                performed_by=request.user
+            )
+
+            messages.success(request, 'Delegation revoked.')
+            return redirect('users:delegation_view')
+
+    # Get delegation operation history
+    delegation_logs = DelegationLog.objects.filter(
+        delegation__data_subject=request.user
+    ).select_related('delegation', 'performed_by')[:50]
+
+    return render(request, 'users/delegation.html', {
+        'current_delegation': current_delegation,
+        'delegation_logs': delegation_logs,
+    })
+
+
+@login_required(login_url="users:login_view")
+def delegate_requests_view(request):
+    """My Delegation Requests - Accept/Reject delegate requests and view accepted delegations."""
+    # Check: only subject role can access
+    user_role = getattr(getattr(request.user, 'role', None), 'name', None)
+    if user_role != 'subject':
+        messages.error(request, 'Only data subjects can access this page.', extra_tags='danger')
+        return redirect('pages:home')
+
+    # First section: pending delegate requests
+    pending_delegations = Delegation.objects.filter(
+        proxy=request.user,
+        status='pending'
+    ).select_related('data_subject')
+
+    # Second section: accepted but not yet active
+    accepted_delegations = Delegation.objects.filter(
+        proxy=request.user,
+        status='accepted'
+    ).select_related('data_subject')
+
+    if request.method == 'POST':
+        delegation_id = request.POST.get('delegation_id')
+        action = request.POST.get('action')
+
+        # Get delegation - must belong to this proxy and have correct status
+        delegation = None
+        if action in ('accept', 'reject'):
+            delegation = Delegation.objects.filter(
+                id=delegation_id,
+                proxy=request.user,
+                status='pending'
+            ).first()
+        elif action == 'request_activation':
+            delegation = Delegation.objects.filter(
+                id=delegation_id,
+                proxy=request.user,
+                status='accepted'
+            ).first()
+
+        if not delegation:
+            messages.error(request, 'Invalid request.', extra_tags='danger')
+            return redirect('users:delegate_requests_view')
+
+        if action == 'accept':
+            delegation.status = 'accepted'
+            delegation.save(update_fields=['status'])
+            DelegationLog.objects.create(
+                delegation=delegation,
+                action='accepted',
+                performed_by=request.user,
+                notes=f'Accepted delegation from {delegation.data_subject.get_full_name()}'
+            )
+            messages.success(request, 'Delegation accepted. You can act on their behalf when activated.')
+
+        elif action == 'reject':
+            delegation.status = 'rejected'
+            delegation.save(update_fields=['status'])
+            DelegationLog.objects.create(
+                delegation=delegation,
+                action='rejected',
+                performed_by=request.user,
+                notes=f'Rejected delegation from {delegation.data_subject.get_full_name()}'
+            )
+            messages.success(request, 'Delegation rejected.')
+
+        elif action == 'request_activation':
+            # Future Work - not implemented yet
+            messages.info(request, 'Activation request flow is not implemented yet.')
+            return redirect('users:delegate_requests_view')
+
+        return redirect('users:delegate_requests_view')
+
+    return render(request, 'users/delegate_requests.html', {
+        'pending_delegations': pending_delegations,
+        'accepted_delegations': accepted_delegations,
+    })
 
 
 # ─────────────────────────────────────────────
 # admin – user management  (staff/superuser only)
-# ─────────────────────────────────────────────
+# ───────────────────────────────────────────��─
 
 def _require_admin(request):
     return request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser)

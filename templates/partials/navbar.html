@@ -29,7 +29,7 @@
           </a>
         </li>
 
-        {% if role == 'subject' or role == 'processor' or role == 'regulator' or role == 'insurance_agent' or request.user.is_staff or request.user.is_superuser %}
+        {% if role == 'subject' or role == 'processor' or role == 'researcher' or role == 'insurance_agent' or role == 'regulator' or request.user.is_staff or request.user.is_superuser %}
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'consent_records' %}active{% endif %}"
             href="{% url 'pages:consent_records' %}">
@@ -61,7 +61,7 @@
         </li>
         {% endif %}
 
-        {% if role == 'regulator' or request.user.is_staff %}
+        {% if role == 'regulator' or request.user.is_staff or request.user.is_superuser %}
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'policies' %}active{% endif %}"
              href="{% url 'pages:policies' %}">
@@ -70,7 +70,7 @@
         </li>
         {% endif %}
 
-        {% if role == 'processor' or role == 'researcher' or role == 'regulator' or role == 'insurance_agent' or request.user.is_staff %}
+        {% if role == 'processor' or role == 'researcher' or role == 'insurance_agent' or role == 'regulator' or request.user.is_staff or request.user.is_superuser %}
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'data_subjects' %}active{% endif %}"
              href="{% url 'pages:data_subjects' %}">
@@ -79,7 +79,7 @@
         </li>
         {% endif %}
 
-        {% if role == 'regulator' or request.user.is_staff %}
+        {% if role == 'regulator' or request.user.is_staff or request.user.is_superuser %}
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'medical_records' %}active{% endif %}"
              href="{% url 'pages:medical_records' %}">
@@ -88,7 +88,7 @@
         </li>
         {% endif %}
 
-        {% if role == 'processor' or role == 'researcher' or role == 'insurance_agent' %}
+        {% if role == 'processor' or role == 'researcher' or role == 'insurance_agent' or request.user.is_staff or request.user.is_superuser %}
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'access_request' %}active{% endif %}"
              href="{% url 'pages:access_request' %}">
@@ -146,6 +146,8 @@
       </ul>
 
       <ul class="navbar-nav align-items-lg-center mb-2 mb-lg-0">
+        {% with role=request.user.role.name|default:'' %}
+
         {% if role == 'processor' or role == 'regulator' or request.user.is_staff or request.user.is_superuser %}
         <li class="nav-item me-2">
           <a href="{% url 'consents:review_pending_consents' %}" class="btn btn-primary btn-sm">
@@ -153,6 +155,8 @@
           </a>
         </li>
         {% endif %}
+
+        {% endwith %}
 
         {% if request.user.is_authenticated %}
         <li class="nav-item dropdown">
@@ -183,10 +187,15 @@
                 <i class="bi bi-shield-lock me-2"></i> Change Password
               </a>
             </li>
-            {% if request.user.can_delegate %}
+            {% if request.user.role.name == 'subject' %}
             <li>
               <a class="dropdown-item" href="{% url 'users:delegation_view' %}">
                 <i class="bi bi-arrow-left-right me-2"></i> Delegation
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="{% url 'users:delegate_requests_view' %}">
+                <i class="bi bi-person-plus me-2"></i> Delegate Requests
               </a>
             </li>
             {% endif %}
