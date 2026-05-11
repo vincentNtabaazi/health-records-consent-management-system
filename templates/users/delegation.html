@@ -4,44 +4,165 @@
 {% block content %}
 <div class="container-fluid px-4 py-4">
   <div class="row justify-content-center">
-    <div class="col-md-5">
+    <div class="col-md-8">
 
       <div class="d-flex align-items-center gap-2 mb-4">
         <a href="{% url 'users:profile_view' %}" class="btn btn-sm btn-outline-secondary">
           <i class="bi bi-arrow-left"></i>
         </a>
-        <h5 class="mb-0 fw-semibold">Manage delegation</h5>
+        <h5 class="mb-0 fw-semibold">Delegation</h5>
       </div>
 
-      <div class="alert alert-info small mb-4">
-        <i class="bi bi-info-circle me-1"></i>
-        Delegation allows another user to act on your behalf. Only users with delegation rights can use this feature.
-      </div>
-
-      <div class="card border-0 shadow-sm">
+      <!-- Current Delegation Status -->
+      <div class="card border-0 shadow-sm mb-4">
         <div class="card-body p-4">
-          <form method="POST" action="{% url 'users:delegation_view' %}">
-            {% csrf_token %}
-            <div class="mb-4">
-              <label class="form-label fw-medium">Delegate authority to</label>
-              <select name="delegate_to" class="form-select">
-                <option value="">— Remove delegation —</option>
-                {% for u in form.delegate_to.field.queryset %}
-                  {% if u != request.user %}
-                    <option value="{{ u.pk }}"
-                      {% if request.user.delegated_to.pk == u.pk %}selected{% endif %}>
-                      {{ u.get_full_name }} ({{ u.role.get_name_display|default:"No role" }})
-                    </option>
-                  {% endif %}
-                {% endfor %}
-              </select>
+          <h6 class="fw-semibold mb-3">Current Delegation Status</h6>
+
+          {% if current_delegation %}
+            <div class="alert alert-info mb-3">
+              <i class="bi bi-info-circle me-1"></i>
+              You can only have one proxy at a time. To change proxy, please revoke current delegation first.
             </div>
-            <div class="d-grid">
-              <button type="submit" class="btn btn-info text-white">
-                <i class="bi bi-arrow-left-right me-1"></i> Save delegation
+            <div class="mb-3">
+              {% if current_delegation.status == 'active' %}
+                <span class="badge bg-success">Active</span>
+              {% elif current_delegation.status == 'accepted' %}
+                <span class="badge bg-info">Accepted</span>
+                <small class="text-muted ms-1">(Delegation accepted, awaiting activation)</small>
+              {% elif current_delegation.status == 'pending' %}
+                <span class="badge bg-warning text-dark">Pending</span>
+                <small class="text-muted ms-1">(Proxy selected, awaiting your confirmation)</small>
+              {% endif %}
+            </div>
+
+            <table class="table table-borderless">
+              <tr>
+                <td class="text-muted" style="width: 120px;">Proxy</td>
+                <td>{{ current_delegation.proxy.get_full_name }}</td>
+              </tr>
+              <tr>
+                <td class="text-muted">Organization</td>
+                <td>{{ current_delegation.proxy.organization_name|default:"—"|default_if_none:"—" }}</td>
+              </tr>
+              <tr>
+                <td class="text-muted">Role</td>
+                <td>Data Subject</td>
+              </tr>
+              <tr>
+                <td class="text-muted">Created</td>
+                <td>{{ current_delegation.created_at|date:"Y-m-d H:i" }}</td>
+              </tr>
+              {% if current_delegation.activated_at %}
+              <tr>
+                <td class="text-muted">Activated</td>
+                <td>{{ current_delegation.activated_at|date:"Y-m-d H:i" }}</td>
+              </tr>
+              {% endif %}
+            </table>
+
+            <form method="POST" action="{% url 'users:delegation_view' %}" class="d-flex gap-2 mt-3">
+              {% csrf_token %}
+              <button type="submit" name="action" value="revoke" class="btn btn-outline-danger btn-sm">
+                <i class="bi bi-x-circle me-1"></i> Revoke
+              </button>
+            </form>
+
+          {% else %}
+            <div class="text-muted">No proxy set</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Select Proxy - only show when no current delegation -->
+      {% if not current_delegation %}
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body p-4">
+          <h6 class="fw-semibold mb-3">Select Proxy</h6>
+
+          <form method="POST" action="{% url 'users:delegation_view' %}" class="mb-4">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="search">
+            <div class="input-group">
+              <input type="text" name="query" class="form-control" placeholder="Search username, name or email" value="{{ search_query|default:'' }}">
+              <button type="submit" class="btn btn-outline-secondary">
+                <i class="bi bi-search me-1"></i> Search
               </button>
             </div>
           </form>
+
+          {% if search_query %}
+            <div class="mb-2 text-muted small">Search results:</div>
+            {% if candidates %}
+              <form method="POST" action="{% url 'users:delegation_view' %}">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="create">
+                <div class="list-group mb-3">
+                  {% for u in candidates %}
+                    <label class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                      <div>
+                        <input type="radio" name="proxy_id" value="{{ u.id }}" required>
+                        <span class="ms-2">{{ u.get_full_name }}</span>
+                        <span class="text-muted small">({{ u.organization_name|default:'No organization' }})</span>
+                      </div>
+                      <span class="badge bg-secondary">Data Subject</span>
+                    </label>
+                  {% endfor %}
+                </div>
+                <button type="submit" class="btn btn-primary">
+                  <i class="bi bi-check-circle me-1"></i> Confirm
+                </button>
+              </form>
+            {% else %}
+              <div class="text-muted">No matching users found</div>
+            {% endif %}
+          {% else %}
+            <div class="text-muted small">Search and select a proxy</div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Delegation History -->
+      <div class="card border-0 shadow-sm">
+        <div class="card-body p-4">
+          <h6 class="fw-semibold mb-3">Delegation History</h6>
+
+          {% if delegation_logs %}
+            <div class="table-responsive">
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Action</th>
+                    <th>Performed By</th>
+                    <th>Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for log in delegation_logs %}
+                    <tr>
+                      <td>{{ log.timestamp|date:"Y-m-d H:i" }}</td>
+                      <td>
+                        {% if log.action == 'created' %}
+                          <span class="badge bg-primary">Created</span>
+                        {% elif log.action == 'replaced' %}
+                          <span class="badge bg-info">Replaced</span>
+                        {% elif log.action == 'revoked' %}
+                          <span class="badge bg-warning">Revoked</span>
+                        {% elif log.action == 'activation_requested' %}
+                          <span class="badge bg-secondary">Activation Requested</span>
+                        {% endif %}
+                      </td>
+                      <td>{{ log.performed_by.get_full_name }}</td>
+                      <td class="text-muted small">{{ log.notes|default:"—" }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="text-muted">No delegation history</div>
+          {% endif %}
         </div>
       </div>
 

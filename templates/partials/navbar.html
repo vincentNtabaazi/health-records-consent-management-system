@@ -187,10 +187,15 @@
                 <i class="bi bi-shield-lock me-2"></i> Change Password
               </a>
             </li>
-            {% if request.user.can_delegate %}
+            {% if request.user.role.name == 'subject' %}
             <li>
               <a class="dropdown-item" href="{% url 'users:delegation_view' %}">
                 <i class="bi bi-arrow-left-right me-2"></i> Delegation
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="{% url 'users:delegate_requests_view' %}">
+                <i class="bi bi-person-plus me-2"></i> Delegate Requests
               </a>
             </li>
             {% endif %}
