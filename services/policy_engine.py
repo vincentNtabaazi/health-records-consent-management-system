@@ -1,7 +1,6 @@
 # services/policy_engine.py
 
 from django.utils import timezone
-
 from patients.models import ConsentPolicy
 from users.models import RolePermission
 from services.odrl import evaluate_odrl_payload
@@ -259,3 +258,8 @@ def check_compliance(patient):
     """
     from services.compliance_checker import check_violations
     return check_violations(patient)
+
+
+def data_anonymity(patient):
+
+    return None

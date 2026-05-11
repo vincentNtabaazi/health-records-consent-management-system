@@ -32,7 +32,7 @@ ALLOWED_HOSTS = []
 
 INSTALLED_APPS = [
     # My apps
-    'users',
+    'users.apps.UsersConfig',
     'pages',
     'consents',
     'patients',
