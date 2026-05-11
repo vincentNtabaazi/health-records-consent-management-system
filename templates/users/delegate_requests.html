@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}My Delegation Requests — ConsentHub{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+  <div class="row justify-content-center">
+    <div class="col-md-8">
+
+      <div class="d-flex align-items-center gap-2 mb-4">
+        <a href="{% url 'users:profile_view' %}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-arrow-left"></i>
+        </a>
+        <h5 class="mb-0 fw-semibold">My Delegation Requests</h5>
+      </div>
+
+      <!-- Section 1: Pending Delegate Requests -->
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body p-4">
+          <h6 class="fw-semibold mb-3">Pending Delegate Requests</h6>
+          <p class="text-muted small">These are delegation requests sent to you that require your acceptance or rejection.</p>
+
+          {% if pending_delegations %}
+            <div class="list-group mb-3">
+              {% for d in pending_delegations %}
+                <div class="list-group-item">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                      <strong>{{ d.data_subject.get_full_name }}</strong>
+                      <br>
+                      <small class="text-muted">{{ d.data_subject.email }}</small>
+                    </div>
+                    <form method="POST" class="d-flex gap-2">
+                      {% csrf_token %}
+                      <input type="hidden" name="delegation_id" value="{{ d.id }}">
+                      <button type="submit" name="action" value="accept" class="btn btn-success btn-sm">
+                        <i class="bi bi-check-circle me-1"></i> Accept
+                      </button>
+                      <button type="submit" name="action" value="reject" class="btn btn-outline-danger btn-sm">
+                        <i class="bi bi-x-circle me-1"></i> Reject
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="text-muted">No pending delegate requests.</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Section 2: Accepted Delegations Waiting for Activation -->
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body p-4">
+          <h6 class="fw-semibold mb-3">Accepted Delegations Waiting for Activation</h6>
+          <p class="text-muted small">These delegations you have accepted. They will become active when activated (requires confirmation from the data subject or a doctor).</p>
+
+          {% if accepted_delegations %}
+            <div class="list-group mb-3">
+              {% for d in accepted_delegations %}
+                <div class="list-group-item">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                      <strong>{{ d.data_subject.get_full_name }}</strong>
+                      <br>
+                      <small class="text-muted">{{ d.data_subject.email }}</small>
+                      <br>
+                      <span class="badge bg-success">Accepted</span>
+                    </div>
+                    <form method="POST">
+                      {% csrf_token %}
+                      <input type="hidden" name="delegation_id" value="{{ d.id }}">
+                      <button type="submit" name="action" value="request_activation" class="btn btn-primary btn-sm">
+                        <i class="bi bi-play-circle me-1"></i> Request Activation
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="text-muted">No accepted delegations waiting for activation.</div>
+          {% endif %}
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}
