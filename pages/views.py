@@ -18,7 +18,8 @@ from services.compliance_checker import (
 )
 from services.policy_engine import evaluate_access
 from users.utils import get_role
-
+from users.models import User, Role, RolePermission, CustomPermission
+from django.http import JsonResponse
 
 
 @login_required(login_url='users:login_view')
@@ -106,6 +107,35 @@ def data_subjects(request):
 
 @login_required(login_url='users:login_view')
 def consent_records(request):
+    if request.method == 'POST':
+        print(request.POST)
+        patient = request.user
+        data_processor_id = request.POST.get("data_processor_id")
+        role_id = request.POST.get("role_id")
+
+        purpose = request.POST.get("purpose")
+        expiry_date = request.POST.get("expiry_date")
+        notes = request.POST.get("notes")
+
+        permission_ids = request.POST.getlist("permission_ids")
+        selected_data_types = request.POST.getlist('data_types')
+
+        consent = Consent.objects.create(
+            patient=patient,
+            data_processor_id=data_processor_id,
+            purpose=purpose,
+            expiry_date=expiry_date if expiry_date else None,
+            notes=notes,
+            data_type=selected_data_types,
+            requested_permissions=permission_ids,
+            granted_permissions=list(CustomPermission.objects.filter(id__in=permission_ids).values_list('name', flat=True)),
+
+            status="active",
+            consent_type=Consent.CONSENT_TYPE_MANUAL_REVIEW,
+        )
+        messages.success(request, f"Consent {consent.id} created successfully.")
+        return redirect("pages:consent_records")
+
     consent_list = Consent.objects.select_related('patient', 'data_processor')
     role = getattr(getattr(request.user, 'role', None), 'name', None)
 
@@ -132,8 +162,49 @@ def consent_records(request):
         'is_paginated': True,
         'page_obj': consents,
         'paginator': paginator,
+        'roles': Role.objects.exclude(name='subject'),
+        'available_users': User.objects.all(),
+        'data_types': MedicalRecord.DATA_CATEGORY_CHOICES,
     }
     return render(request, 'pages/consent_records.html', context)
+
+def get_users_by_role(request):
+    role_id = request.GET.get('role_id')
+
+    # USERS
+    users = User.objects.filter(role_id=role_id).values(
+        'id',
+        'username',
+        'first_name',
+        'last_name',
+        'role__name'
+    )
+
+    users_data = [
+        {
+            "id": u["id"],
+            "name": f"{u['first_name']} {u['last_name']}".strip() or u["username"],
+            "role": u["role__name"]
+        }
+        for u in users
+    ]
+
+    # PERMISSIONS (via RolePermission table)
+    permissions = RolePermission.objects.filter(role_id=role_id).select_related('permission')
+
+    perms_data = [
+        {
+            "id": rp.permission.id,
+            "name": rp.permission.name,
+            "code": getattr(rp.permission, "code", None)  # optional if exists
+        }
+        for rp in permissions
+    ]
+
+    return JsonResponse({
+        "users": users_data,
+        "permissions": perms_data
+    })
 
 
 @login_required(login_url='users:login_view')

@@ -258,8 +258,3 @@ def check_compliance(patient):
     """
     from services.compliance_checker import check_violations
     return check_violations(patient)
-
-
-def data_anonymity(patient):
-
-    return None
