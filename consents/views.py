@@ -1,5 +1,7 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
+
+from services.anonymise import ROLE_PRIVACY_RULES, anonymize_postcodes, transform_patient_data
 from .models import *
 import json
 
@@ -449,48 +451,117 @@ def download_allowed_data_csv(request):
     requestor_user_acc = User.objects.get(id=requestor)
     datatype = request.GET.get('datatype')
     purpose = request.GET.get('purpose')
-
     patient_csv_data = []
 
+    role = requestor_user_acc.role.name
+    print('role', role)
+    privacy_rules = ROLE_PRIVACY_RULES.get(role)
+    print('privacy_rules', privacy_rules)
+    allowed_patients = []
     for patient in Patient.objects.all():
+
         log = evaluate_access(
             requester=requestor_user_acc,
             patient=patient,
             resource_type=datatype,
             purpose=purpose,
-            action='share',
+            action='read',
         )
-        if log.decision == 'allow':
-            patient_csv_data.append({
-                "patient_first_name": patient.user.first_name,
-                "patient_last_name": patient.user.last_name,
-                "patient_email": patient.user.email,
-                "date_of_birth": patient.user.date_of_birth,
-                "age": patient.user.age,
-                "postal_code": patient.user.postal_code,
-                "can_delegate": patient.user.can_delegate,
-                "data_type": log.access_request.resource_type,
-                "requestor": log.access_request.requester.organization_name,
-                "consent_id": log.matched_consent.consent_id,
-                "consent_type": log.matched_consent.consent_type,
-                "purpose": log.matched_consent.purpose,
-                "decision_date": log.matched_consent.decision_date.strftime("%Y-%m-%d") if log.matched_consent.decision_date else "",
-                "expiry_date": log.matched_consent.expiry_date.strftime("%Y-%m-%d") if log.matched_consent.expiry_date else "",
-            })
 
-    filename = f"Patient_Data_{timezone.now().strftime('%Y%m%d_%H%M')}.csv"
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        if log.decision == "allow":
+            allowed_patients.append((patient, log))
 
-    writer = csv.writer(response)
+    patients_only = [p for p, _ in allowed_patients]
 
-    if patient_csv_data:
-        headers = list(patient_csv_data[0].keys())
-        writer.writerow(headers)
+    anonymized_postcodes = anonymize_postcodes(
+        patients_only,
+        k=privacy_rules["k_anonymity"]
+    )
 
-        for row in patient_csv_data:
-            writer.writerow([row.get(h, "") for h in headers])
-    else:
-        writer.writerow(["No data available"])
+    print('allowed_patients', allowed_patients)
 
-    return response
+    for patient, log in allowed_patients:
+        transformed = transform_patient_data(
+            patient,
+            log,
+            privacy_rules,
+            anonymized_postcodes
+        )
+        print('transformed', transformed)
+
+        patient_csv_data.append(transformed)
+
+        filename = (
+            f"Patient_Data_"
+            f"{timezone.now().strftime('%Y%m%d_%H%M')}.csv"
+        )
+
+        response = HttpResponse(content_type='text/csv')
+
+        response['Content-Disposition'] = (
+            f'attachment; filename="{filename}"'
+        )
+
+        writer = csv.writer(response)
+
+        if patient_csv_data:
+
+            headers = list(patient_csv_data[0].keys())
+
+            writer.writerow(headers)
+
+            for row in patient_csv_data:
+                writer.writerow([
+                    row.get(header, "")
+                    for header in headers
+                ])
+
+        else:
+
+            writer.writerow(["No data available"])
+
+        return response
+
+    #
+    # for patient in Patient.objects.all():
+    #     log = evaluate_access(
+    #         requester=requestor_user_acc,
+    #         patient=patient,
+    #         resource_type=datatype,
+    #         purpose=purpose,
+    #         action='share',
+    #     )
+    #     if log.decision == 'allow':
+    #         patient_csv_data.append({
+    #             "patient_first_name": patient.user.first_name,
+    #             "patient_last_name": patient.user.last_name,
+    #             "patient_email": patient.user.email,
+    #             "date_of_birth": patient.user.date_of_birth,
+    #             "age": patient.user.age,
+    #             "postal_code": patient.user.postal_code,
+    #             "can_delegate": patient.user.can_delegate,
+    #             "data_type": log.access_request.resource_type,
+    #             "requestor": log.access_request.requester.organization_name,
+    #             "consent_id": log.matched_consent.consent_id,
+    #             "consent_type": log.matched_consent.consent_type,
+    #             "purpose": log.matched_consent.purpose,
+    #             "decision_date": log.matched_consent.decision_date.strftime("%Y-%m-%d") if log.matched_consent.decision_date else "",
+    #             "expiry_date": log.matched_consent.expiry_date.strftime("%Y-%m-%d") if log.matched_consent.expiry_date else "",
+    #         })
+    #
+    # filename = f"Patient_Data_{timezone.now().strftime('%Y%m%d_%H%M')}.csv"
+    # response = HttpResponse(content_type='text/csv')
+    # response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    #
+    # writer = csv.writer(response)
+    #
+    # if patient_csv_data:
+    #     headers = list(patient_csv_data[0].keys())
+    #     writer.writerow(headers)
+    #
+    #     for row in patient_csv_data:
+    #         writer.writerow([row.get(h, "") for h in headers])
+    # else:
+    #     writer.writerow(["No data available"])
+    #
+    # return response

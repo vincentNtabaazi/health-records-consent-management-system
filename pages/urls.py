@@ -16,4 +16,5 @@ urlpatterns = [
     path('compliance/export/', export_audit_logs_csv, name='export_audit_logs_csv'),
     path('access_history/', access_history_view, name='access_history'),
     path('my_data/', my_data_view, name='my_data'),
+    path('ajax/users-by-role/', get_users_by_role, name='users_by_role'),
 ]

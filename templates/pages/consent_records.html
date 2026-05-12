@@ -40,14 +40,21 @@
                         <input type="hidden" name="grant_consent" value="1">
 
                         <div class="col-md-4">
-                            <label class="form-label fw-semibold text-muted small uppercase">Data Processor</label>
-                            <select name="data_processor_id" class="form-select border-0 shadow-sm" required>
+                            <label class="form-label fw-semibold text-muted small uppercase">Role</label>
+                            <select id="roleSelect" name="role_id" class="form-select border-0 shadow-sm" required>
                                 <option value="">Select a professional...</option>
-                                {% for user in available_users %}
-                                <option value="{{ user.id }}">
-                                    {{ user.get_full_name|default:user.username }} ({{ user.role.get_name_display }})
+                                {% for role in roles %}
+                                <option value="{{ role.id }}">
+                                    {{ role.get_name_display }}
                                 </option>
                                 {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold text-muted small uppercase">Data Processor</label>
+                            <select id="userSelect" name="data_processor_id" class="form-select border-0 shadow-sm" required>
+                                <option value="">Select a professional...</option>
                             </select>
                         </div>
 
@@ -64,6 +71,20 @@
                         </div>
 
                         <div class="col-md-4">
+                            <label class="form-label fw-semibold text-muted small uppercase">Data type</label>
+                            <select id="dataTypeSelect"
+                                    name="data_types"
+                                    class="form-select border-0 shadow-sm"
+                                    multiple
+                                    required>
+
+                                {% for value, label in data_types %}
+                                <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-4">
                             <label class="form-label fw-semibold text-muted small">Expiry Date</label>
                             <input type="date" name="expiry_date" class="form-control border-0 shadow-sm">
                         </div>
@@ -73,8 +94,8 @@
                             <div class="p-3 bg-white rounded shadow-sm">
                                 <p class="text-muted small mb-0" id="permHint">Please select a data processor to define specific access levels.</p>
                                 <div class="row" id="permissionSection" style="display: none;">
-                                    {% for role_name, perms in all_role_permissions.items %}
-                                    <div class="col-12 permission-role-section" data-role="{{ role_name }}">
+<!--                                    {% for role_name, perms in all_role_permissions.items %}-->
+                                    <div class="col-12">
                                         <div class="row g-2">
                                             {% for perm in perms %}
                                             <div class="col-md-4">
@@ -91,7 +112,7 @@
                                             {% endfor %}
                                         </div>
                                     </div>
-                                    {% endfor %}
+<!--                                    {% endfor %}-->
                                 </div>
                             </div>
                         </div>
@@ -239,38 +260,80 @@
 </div>
 
 <script>
-// Keep existing script logic but update the UI selector names if changed
-document.addEventListener('DOMContentLoaded', function() {
-    const userSelect = document.querySelector('select[name="data_processor_id"]');
-    const permSection = document.getElementById('permissionSection');
-    const permHint = document.getElementById('permHint');
+document.getElementById("roleSelect").addEventListener("change", function () {
+    const roleId = this.value;
 
-    const availableUsers = [
-        {% for user in available_users %}
-        {id: '{{ user.id }}', role: '{{ user.role.name }}'},
-        {% endfor %}
-    ];
+    const userSelect = document.getElementById("userSelect");
+    const permSection = document.getElementById("permissionSection");
+    const permHint = document.getElementById("permHint");
 
-    if (userSelect) {
-        userSelect.addEventListener('change', function() {
-            const selectedId = this.value;
-            document.querySelectorAll('.permission-role-section').forEach(el => el.style.display = 'none');
+    userSelect.innerHTML = '<option value="">Loading...</option>';
 
-            if (!selectedId) {
-                if (permSection) permSection.style.display = 'none';
-                if (permHint) permHint.style.display = 'block';
-                return;
-            }
+    fetch(`/ajax/users-by-role/?role_id=${roleId}`)
+        .then(response => response.json())
+        .then(data => {
 
-            const selectedUser = availableUsers.find(u => u.id === selectedId);
-            if (selectedUser) {
-                const roleSection = document.querySelector(`.permission-role-section[data-role="${selectedUser.role}"]`);
-                if (roleSection) roleSection.style.display = 'block';
-                if (permSection) permSection.style.display = 'block';
-                if (permHint) permHint.style.display = 'none';
+            // ======================
+            // USERS DROPDOWN
+            // ======================
+            userSelect.innerHTML = '<option value="">Select a professional...</option>';
+
+            data.users.forEach(user => {
+                const option = document.createElement("option");
+                option.value = user.id;
+                option.textContent = `${user.name} (${user.role})`;
+                userSelect.appendChild(option);
+            });
+
+            // ======================
+            // PERMISSIONS SECTION
+            // ======================
+            permSection.innerHTML = ""; // clear old permissions
+
+            if (data.permissions.length > 0) {
+                permHint.style.display = "none";
+                permSection.style.display = "block";
+
+                const row = document.createElement("div");
+                row.className = "row g-2";
+
+                data.permissions.forEach(perm => {
+                    const col = document.createElement("div");
+                    col.className = "col-md-4";
+
+                    col.innerHTML = `
+                        <div class="form-check p-2 border rounded-pill px-3">
+                            <input class="form-check-input ms-0 me-2 permission-checkbox"
+                                   type="checkbox"
+                                   name="permission_ids"
+                                   value="${perm.id}"
+                                   id="perm_${roleId}_${perm.id}">
+                            <label class="form-check-label small" for="perm_${roleId}_${perm.id}">
+                                ${perm.name}
+                            </label>
+                        </div>
+                    `;
+
+                    row.appendChild(col);
+                });
+
+                permSection.appendChild(row);
+
+            } else {
+                permHint.style.display = "block";
+                permHint.textContent = "No permissions assigned to this role.";
+                permSection.style.display = "none";
             }
         });
-    }
+});
+</script>
+<script>
+$(document).ready(function() {
+    $('#dataTypeSelect').select2({
+        placeholder: "Select data types",
+        allowClear: true,
+        width: '100%'
+    });
 });
 </script>
 {% endblock %}
