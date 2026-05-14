@@ -6,8 +6,16 @@
 {% block content %}
 <div class="container-fluid px-4 py-5">
 
+  {% if is_acting_as_proxy %}
+  <div class="alert alert-info mb-4">
+    <i class="bi bi-person-check me-2"></i>
+    <strong>You are acting on behalf of {{ effective_user.get_full_name }}.</strong>
+    You are viewing these medical records as an active delegate.
+  </div>
+  {% endif %}
+
   <div class="d-flex justify-content-between align-items-center mb-4">
-    <h4 class="fw-semibold mb-0">Medical Records</h4>
+    <h4 class="fw-semibold mb-0">{{ page_title }}</h4>
     <p class="text-center text-muted small mt-2">
       Page {{ medical_records.number }} of {{ paginator.num_pages }} &mdash; {{ paginator.count }} record{{ paginator.count|pluralize }}
     </p>

@@ -186,6 +186,38 @@
           </a>
           <ul class="dropdown-menu dropdown-menu-end dropdown-menu-dark shadow-sm">
             <li><h6 class="dropdown-header">{{ request.user.email }}</h6></li>
+
+            <!-- Acting Context Switcher -->
+            <li>
+                <div class="px-3 py-2 text-white-50 small border-bottom border-secondary">
+                    {% if current_acting_delegation %}
+                        <i class="bi bi-person-check me-1"></i>
+                        Acting as: <strong>{{ current_acting_delegation.data_subject.get_full_name }}</strong>
+                    {% else %}
+                        <i class="bi bi-person me-1"></i>
+                        Acting as: <strong>Myself</strong>
+                    {% endif %}
+                </div>
+            </li>
+
+            {% if available_delegations %}
+            {% for d in available_delegations %}
+            <li>
+                <a class="dropdown-item" href="{% url 'users:set_acting_context_view' d.data_subject.id %}">
+                    <i class="bi bi-person me-2"></i>Act as {{ d.data_subject.get_full_name }}
+                </a>
+            </li>
+            {% endfor %}
+            {% endif %}
+
+            {% if is_acting_as_proxy %}
+            <li>
+                <a class="dropdown-item text-warning" href="{% url 'users:clear_acting_context_view' %}">
+                    <i class="bi bi-x-circle me-2"></i>Switch to Myself
+                </a>
+            </li>
+            {% endif %}
+
             <li>
               <a class="dropdown-item" href="{% url 'users:profile_view' %}">
                 <i class="bi bi-person me-2"></i> My Profile

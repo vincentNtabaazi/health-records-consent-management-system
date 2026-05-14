@@ -15,6 +15,7 @@ from .views import (
     roles_permissions_view,
     update_role_permissions_view,
 )
+from .views_acting_context import set_acting_context_view, clear_acting_context_view
 
 app_name = "users"
 
@@ -31,6 +32,11 @@ urlpatterns = [
     path("profile/delegate-requests/", delegate_requests_view, name="delegate_requests_view"),
     path("profile/activation-requests/", activation_requests_view, name="activation_requests_view"),
     path("profile/delegation/", delegation_view, name="delegation_view_alt"),
+
+    # ── acting context ──────────────────────
+    # acting context
+    path("profile/acting-context/set/<int:data_subject_id>/", set_acting_context_view, name="set_acting_context_view"),
+    path("profile/acting-context/clear/", clear_acting_context_view, name="clear_acting_context_view"),
 
     # ── admin: user management ────────────────
     path("admin/users/", user_management_view, name="user_management_view"),
