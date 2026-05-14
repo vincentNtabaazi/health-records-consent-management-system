@@ -21,6 +21,7 @@ from consents.forms import (
 from consents.models import Consent
 from patients.models import MedicalRecord, Patient, PatientPermission
 from users.models import CustomPermission
+from users.utils import get_effective_user, get_current_acting_context
 from services.odrl import infer_action_from_permission, infer_data_category_from_permission, prettify_permission
 from services.policy_engine import check_access, evaluate_access
 import csv
@@ -46,14 +47,48 @@ def _can_review(user, consent):
     return False
 
 
+def _can_view_consent(request, consent):
+    """
+    Read-only view permission for consent.
+    Allows:
+    - Users allowed by _can_review (data subject, staff, superuser)
+    - OR current user is in valid acting context, acting for consent.patient
+    """
+    # Check original _can_review logic
+    if _can_review(request.user, consent):
+        return True
+
+    # Check proxy mode
+    context = get_current_acting_context(request)
+    if context and context.data_subject_id == consent.patient_id:
+        return True
+
+    return False
+
+
 
 def _can_manage_subject_preferences(user, patient):
-    """Only the data subject can manage their own sharing preferences."""
+    """Only the data subject (or their active delegate) can manage sharing preferences."""
     if not user.is_authenticated:
         return False
 
     role_name = getattr(getattr(user, 'role', None), 'name', None)
-    return role_name == 'subject' and patient.user_id == user.id
+    if role_name != 'subject':
+        return False
+
+    # Allow if user is the data subject themselves
+    if patient.user_id == user.id:
+        return True
+
+    # Allow if user is an active delegate for this patient
+    # Check if there's an active delegation where user is proxy and patient.user is data_subject
+    from users.models import Delegation
+    delegation = Delegation.objects.filter(
+        data_subject=patient.user,
+        proxy=user,
+        status='active'
+    ).first()
+    return delegation is not None
 
 
 
@@ -315,7 +350,10 @@ def withdraw_consent_view(request, consent_id):
     return redirect('consents:consent_details', consent_id=consent.id)
 
 
-def _render_subject_sharing_preferences(request, patient, redirect_to='patients:patient_medical_timeline'):
+def _render_subject_sharing_preferences(
+    request, patient, redirect_to='patients:patient_medical_timeline',
+    is_acting_as_proxy=False, effective_user=None
+):
     if not _can_manage_subject_preferences(request.user, patient):
         raise PermissionDenied('Only the subject can manage their own sharing preferences.')
 
@@ -342,6 +380,8 @@ def _render_subject_sharing_preferences(request, patient, redirect_to='patients:
         'grouped_role_permissions': form.grouped_role_permissions,
         'selected_role_permission_ids': selected_role_permission_ids,
         'is_own_preferences': redirect_to == 'pages:my_data',
+        'is_acting_as_proxy': is_acting_as_proxy,
+        'effective_user': effective_user,
     })
 
 
@@ -351,12 +391,22 @@ def my_subject_sharing_preferences_view(request):
     if role_name != 'subject':
         raise PermissionDenied('Only subjects can manage sharing preferences.')
 
-    patient = Patient.objects.select_related('user').filter(user=request.user).first()
+    # Get effective user (if acting as proxy, use data_subject)
+    effective_user = get_effective_user(request)
+    is_acting_as_proxy = get_current_acting_context(request) is not None
+
+    # Get patient for effective_user
+    patient = Patient.objects.select_related('user').filter(user=effective_user).first()
     if not patient:
-        messages.error(request, 'No subject profile was found for your account yet.')
+        messages.error(request, 'No subject profile was found for this account.')
         return redirect('pages:my_data')
 
-    return _render_subject_sharing_preferences(request, patient, redirect_to='pages:my_data')
+    return _render_subject_sharing_preferences(
+        request, patient,
+        redirect_to='pages:my_data',
+        is_acting_as_proxy=is_acting_as_proxy,
+        effective_user=effective_user
+    )
 
 
 @login_required(login_url='users:login_view')
@@ -372,7 +422,7 @@ def granted_records_view(request, consent_id):
         pk=consent_id,
     )
 
-    if not _can_review(request.user, consent) and request.user.id != consent.data_processor_id:
+    if not _can_view_consent(request, consent) and request.user.id != consent.data_processor_id:
         raise PermissionDenied('You cannot view the granted records for this consent.')
 
     readable_categories = {
@@ -397,9 +447,15 @@ def granted_records_view(request, consent_id):
     else:
         records = [record for record in records_qs if record.data_category in readable_categories]
 
+    # Get proxy context for banner
+    effective_user = get_effective_user(request)
+    is_acting_as_proxy = get_current_acting_context(request) is not None
+
     context = {
         'consent': consent,
         'records': records,
+        'effective_user': effective_user,
+        'is_acting_as_proxy': is_acting_as_proxy,
         'readable_categories': sorted(readable_categories),
     }
     return render(request, 'consents/granted_records.html', context)
@@ -412,7 +468,7 @@ def consent_details(request, consent_id):
         pk=consent_id,
     )
 
-    if not _can_review(request.user, consent) and request.user.id != consent.data_processor_id:
+    if not _can_view_consent(request, consent) and request.user.id != consent.data_processor_id:
         raise PermissionDenied('You cannot view this consent.')
 
     patient_profile = get_object_or_404(Patient.objects.select_related('user'), user=consent.patient)
@@ -432,6 +488,10 @@ def consent_details(request, consent_id):
             'denied': consent.status in {'active', 'denied'} and permission.name not in granted_permission_names,
         })
 
+    # Get proxy context for banner
+    effective_user = get_effective_user(request)
+    is_acting_as_proxy = get_current_acting_context(request) is not None
+
     context = {
         'consent': consent,
         'requested_permissions': requested_permissions,
@@ -442,6 +502,8 @@ def consent_details(request, consent_id):
         'can_view_granted_records': consent.status == 'active' and bool(consent.granted_permissions),
         'odrl_request_pretty': json.dumps(consent.odrl_request or {}, ensure_ascii=False, indent=2),
         'odrl_policy_pretty': json.dumps(consent.odrl_policy or {}, ensure_ascii=False, indent=2),
+        'effective_user': effective_user,
+        'is_acting_as_proxy': is_acting_as_proxy,
     }
     return render(request, 'consents/consent_details.html', context)
 

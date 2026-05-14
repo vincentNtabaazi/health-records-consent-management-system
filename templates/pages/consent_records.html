@@ -5,6 +5,15 @@
 {% block content %}
 <div class="container-fluid bg-white min-vh-100 py-5">
     <div class="container">
+
+        {% if is_acting_as_proxy %}
+        <div class="alert alert-info mb-4">
+            <i class="bi bi-person-check me-2"></i>
+            <strong>You are acting on behalf of {{ effective_user.get_full_name }}.</strong>
+            You are viewing consent records as an active delegate.
+        </div>
+        {% endif %}
+
         <!-- Header Section -->
         <div class="row mb-5 align-items-center">
             <div class="col-md-8">
@@ -13,7 +22,7 @@
             </div>
             <div class="col-md-4 text-md-end">
                 {% with user_role=request.user.role.name %}
-                {% if user_role == 'subject' %}
+                {% if user_role == 'subject' and not is_acting_as_proxy %}
                 <button class="btn btn-dark btn-lg shadow-sm" type="button" data-bs-toggle="collapse" data-bs-target="#grantConsentForm">
                     <i class="bi bi-shield-check me-2"></i>Grant New Consent
                 </button>
@@ -24,7 +33,7 @@
 
         <!-- Grant Consent Form (Subject only) -->
         {% with user_role=request.user.role.name %}
-        {% if user_role == 'subject' %}
+        {% if user_role == 'subject' and not is_acting_as_proxy %}
         <div class="collapse {% if duplicate_warning %}show{% endif %} mb-5" id="grantConsentForm">
             <div class="card border-0 shadow-sm bg-light">
                 <div class="card-body p-4 p-md-5">
