@@ -105,10 +105,37 @@ def login_view(request):
             cd = form.cleaned_data
             user = authenticate(password=cd["password"], username=cd["username"])
             if user is not None:
+                if not user.is_active:
+                    messages.error(request, "Account is not active. Reach out to admin")
+                    return redirect('users:login_view')
+                
                 login(request, user)
                 messages.success(request, "Logged in successfully.")
-                next_url = request.GET.get("next", "pages:home")
-                return redirect(next_url)
+                next_url = request.GET.get("next")
+
+                if next_url:
+                    return redirect(next_url)
+
+                # Role-based redirects
+                role = getattr(user.role, 'name', None)
+
+                if user.is_superuser or user.is_staff:
+                    return redirect('pages:home')
+
+                elif role == 'subject':
+                    return redirect('pages:my_data')
+
+                elif role == 'processor':
+                    return redirect('pages:access_request')
+
+                elif role == 'researcher':
+                    return redirect('pages:access_request')
+
+                elif role == 'regulator':
+                    return redirect('pages:home')
+
+                # Fallback
+                return redirect('pages:home')
             else:
                 messages.error(request, "Invalid email or password.", extra_tags="danger")
         else:

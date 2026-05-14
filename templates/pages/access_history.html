@@ -195,44 +195,65 @@
                     </table>
                 </div>
 
-                <!-- Pagination -->
-                {% if history.has_other_pages %}
-                <nav class="mt-3">
-                    <ul class="pagination justify-content-center">
-                        {% if history.has_previous %}
-                        <li class="page-item">
-                            <a class="page-link" href="?page={{ history.previous_page_number }}{% for key, value in filters.items %}{% if value %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Previous</a>
-                        </li>
-                        {% else %}
-                        <li class="page-item disabled">
-                            <span class="page-link">Previous</span>
-                        </li>
-                        {% endif %}
+<!-- Pagination -->
+{% if history.has_other_pages %}
+<div class="d-flex align-items-center justify-content-between px-2 mt-4">
 
-                        {% for i in history.paginator.page_range %}
-                            {% if history.number == i %}
-                            <li class="page-item active">
-                                <span class="page-link">{{ i }}</span>
-                            </li>
-                            {% else %}
-                            <li class="page-item">
-                                <a class="page-link" href="?page={{ i }}{% for key, value in filters.items %}{% if value %}&{{ key }}={{ value }}{% endif %}{% endfor %}">{{ i }}</a>
-                            </li>
-                            {% endif %}
-                        {% endfor %}
+  <!-- Record count summary -->
+  <p class="text-muted small mb-0">
+    Page <span class="fw-semibold text-dark">{{ history.number }}</span>
+    of <span class="fw-semibold text-dark">{{ history.paginator.num_pages }}</span>
+    &mdash; {{ history.paginator.count }} record{{ history.paginator.count|pluralize }}
+  </p>
 
-                        {% if history.has_next %}
-                        <li class="page-item">
-                            <a class="page-link" href="?page={{ history.next_page_number }}{% for key, value in filters.items %}{% if value %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Next</a>
-                        </li>
-                        {% else %}
-                        <li class="page-item disabled">
-                            <span class="page-link">Next</span>
-                        </li>
-                        {% endif %}
-                    </ul>
-                </nav>
-                {% endif %}
+  <nav>
+    <ul class="pagination pagination mb-0 gap-1">
+
+      <!-- Previous -->
+      <li class="page-item {% if not history.has_previous %}disabled{% endif %}">
+        <a class="page-link rounded border-0 {% if history.has_previous %}text-primary{% endif %}"
+           href="{% if history.has_previous %}?page={{ history.previous_page_number }}{% for key, value in filters.items %}{% if value %}&{{ key }}={{ value }}{% endif %}{% endfor %}{% else %}#{% endif %}"
+           aria-label="Previous">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" class="bi bi-chevron-left" viewBox="0 0 16 16">
+            <path fill-rule="evenodd" d="M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0"/>
+          </svg>
+        </a>
+      </li>
+
+      <!-- Page numbers -->
+      {% for i in history.paginator.page_range %}
+        {% if history.number == i %}
+          <li class="page-item active">
+            <span class="page-link rounded border-0 fw-semibold">{{ i }}</span>
+          </li>
+        {% elif i == 1 or i == history.paginator.num_pages or i >= history.number|add:"-2" and i <= history.number|add:"2" %}
+          <li class="page-item">
+            <a class="page-link rounded border-0 text-muted"
+               href="?page={{ i }}{% for key, value in filters.items %}{% if value %}&{{ key }}={{ value }}{% endif %}{% endfor %}">{{ i }}</a>
+          </li>
+        {% elif i == history.number|add:"-3" or i == history.number|add:"3" %}
+          <li class="page-item disabled">
+            <span class="page-link border-0 text-muted px-1">…</span>
+          </li>
+        {% endif %}
+      {% endfor %}
+
+      <!-- Next -->
+      <li class="page-item {% if not history.has_next %}disabled{% endif %}">
+        <a class="page-link rounded border-0 {% if history.has_next %}text-primary{% endif %}"
+           href="{% if history.has_next %}?page={{ history.next_page_number }}{% for key, value in filters.items %}{% if value %}&{{ key }}={{ value }}{% endif %}{% endfor %}{% else %}#{% endif %}"
+           aria-label="Next">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" class="bi bi-chevron-right" viewBox="0 0 16 16">
+            <path fill-rule="evenodd" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708"/>
+          </svg>
+        </a>
+      </li>
+
+    </ul>
+  </nav>
+
+</div>
+{% endif %}
             </div>
         </div>
     </div>
