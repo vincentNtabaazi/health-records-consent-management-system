@@ -95,7 +95,16 @@
             <i class="bi bi-shield-check me-1"></i> Access Request
           </a>
         </li>
-       {% endif %}
+        {% endif %}
+
+        {% if role == 'processor' %}
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'activation_requests_view' %}active{% endif %}"
+             href="{% url 'users:activation_requests_view' %}">
+            <i class="bi bi-person-check me-1"></i> Delegation Activation
+          </a>
+        </li>
+        {% endif %}
 
        {% if role == 'processor' or role == 'researcher' or role == 'insurance_agent' %}
        <li class="nav-item">
