@@ -174,3 +174,5 @@ cython_debug/
 # End of https://www.toptal.com/developers/gitignore/api/djangoDELEGATION_DESIGN.md
 .DS_Store
 /DELEGATION_DESIGN.md
+/ACTING_CONTEXT_SWITCHER_DESIGN.md
+/CONSENT_PROXY_MODE_ANALYSIS.md

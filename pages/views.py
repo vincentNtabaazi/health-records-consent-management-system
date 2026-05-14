@@ -17,7 +17,7 @@ from services.compliance_checker import (
     get_expiring_consents_for_patient,
 )
 from services.policy_engine import evaluate_access
-from users.utils import get_role
+from users.utils import get_role, get_effective_user, get_current_acting_context
 from users.models import User, Role, RolePermission, CustomPermission
 from django.http import JsonResponse
 
@@ -108,8 +108,15 @@ def data_subjects(request):
 @login_required(login_url='users:login_view')
 def consent_records(request):
     if request.method == 'POST':
+        # Block consent creation while acting as proxy
+        is_acting_as_proxy = get_current_acting_context(request) is not None
+        if is_acting_as_proxy:
+            messages.error(request, 'Creating consent records while acting as a delegate is not supported yet.')
+            return redirect("pages:consent_records")
+
         print(request.POST)
-        patient = request.user
+        effective_user = get_effective_user(request)
+        patient = effective_user
         data_processor_id = request.POST.get("data_processor_id")
         role_id = request.POST.get("role_id")
 
@@ -139,10 +146,14 @@ def consent_records(request):
     consent_list = Consent.objects.select_related('patient', 'data_processor')
     role = getattr(getattr(request.user, 'role', None), 'name', None)
 
+    # Get effective user for proxy mode
+    effective_user = get_effective_user(request)
+    is_acting_as_proxy = get_current_acting_context(request) is not None
+
     if request.user.is_staff or request.user.is_superuser or role == 'regulator':
         consent_list = consent_list.all()
     elif role == 'subject':
-        consent_list = consent_list.filter(patient=request.user)
+        consent_list = consent_list.filter(patient=effective_user)
     else:
         consent_list = consent_list.filter(data_processor=request.user)
 
@@ -165,6 +176,8 @@ def consent_records(request):
         'roles': Role.objects.exclude(name='subject'),
         'available_users': User.objects.all(),
         'data_types': MedicalRecord.DATA_CATEGORY_CHOICES,
+        'effective_user': effective_user,
+        'is_acting_as_proxy': is_acting_as_proxy,
     }
     return render(request, 'pages/consent_records.html', context)
 
@@ -252,18 +265,25 @@ def medical_records(request):
         return redirect('pages:dashboard_view')
 
     if role == 'subject':
+        # Get effective user (if acting as proxy, use data_subject)
+        effective_user = get_effective_user(request)
+        is_acting_as_proxy = get_current_acting_context(request) is not None
+
         try:
-            patient = Patient.objects.get(user=request.user)
+            patient = Patient.objects.get(user=effective_user)
             all_records = MedicalRecord.objects.select_related(
                 'patient',
                 'patient__user'
             ).filter(patient=patient).order_by('-created_at')
-            page_title = 'My Medical Records'
+            page_title = 'Medical Records of {}'.format(effective_user.get_full_name()) if is_acting_as_proxy else 'My Medical Records'
         except Patient.DoesNotExist:
             all_records = MedicalRecord.objects.none()
             page_title = 'My Medical Records'
             messages.error(request, 'Patient profile not found.')
     else:
+        # Global viewers (processor, researcher, etc.) see all records
+        effective_user = None
+        is_acting_as_proxy = False
         all_records = MedicalRecord.objects.select_related(
             'patient',
             'patient__user'
@@ -297,6 +317,8 @@ def medical_records(request):
         'paginator': paginator,
         'is_paginated': page_obj.has_other_pages(),
         'page_title': page_title,
+        'effective_user': effective_user,
+        'is_acting_as_proxy': is_acting_as_proxy,
     }
     return render(request, 'pages/medical_records.html', context)
 
@@ -574,9 +596,13 @@ def my_data_view(request):
         messages.error(request, 'This page is only accessible to patients.')
         return redirect('pages:dashboard_view')
 
+    # Get effective user (if acting as proxy, use data_subject)
+    effective_user = get_effective_user(request)
+    is_acting_as_proxy = get_current_acting_context(request) is not None
+
     # Get patient profile
     try:
-        patient = Patient.objects.get(user=request.user)
+        patient = Patient.objects.get(user=effective_user)
     except Patient.DoesNotExist:
         messages.error(request, 'Patient profile not found.')
         return redirect('pages:dashboard_view')
@@ -585,7 +611,7 @@ def my_data_view(request):
     auto_expire_consents()
 
     # Find consents expiring within the next 7 days
-    expiring_consents = get_expiring_consents_for_patient(request.user, days_ahead=7)
+    expiring_consents = get_expiring_consents_for_patient(effective_user, days_ahead=7)
 
     # Who accessed my data
     access_logs = DecisionLog.objects.filter(
@@ -600,7 +626,7 @@ def my_data_view(request):
     my_consents = (
         Consent.objects
         .select_related('data_processor', 'data_processor__role')
-        .filter(patient=request.user)
+        .filter(patient=effective_user)
         .order_by('-created_date')
     )
 
@@ -611,6 +637,8 @@ def my_data_view(request):
         'deny_count': access_logs.filter(decision='deny').count(),
         'my_consents': my_consents,
         'expiring_consents': expiring_consents,
+        'effective_user': effective_user,
+        'is_acting_as_proxy': is_acting_as_proxy,
     }
     return render(request, 'pages/my_data.html', context)
 

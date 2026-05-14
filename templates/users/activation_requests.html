@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}My Delegation Requests — ConsentHub{% endblock %}
+{% block title %}Delegation Activation — ConsentHub{% endblock %}
 
 {% block content %}
 <div class="container-fluid px-4 py-4">
@@ -7,53 +7,17 @@
     <div class="col-md-10">
 
       <div class="d-flex align-items-center gap-2 mb-4">
-        <a href="{% url 'users:profile_view' %}" class="btn btn-sm btn-outline-secondary">
+        <a href="{% url 'pages:dashboard_view' %}" class="btn btn-sm btn-outline-secondary">
           <i class="bi bi-arrow-left"></i>
         </a>
-        <h5 class="mb-0 fw-semibold">My Delegation Requests</h5>
+        <h5 class="mb-0 fw-semibold">Delegation Activation</h5>
       </div>
 
-      <!-- Section 1: Pending Delegate Requests -->
+      <!-- Section 1: Request Activation -->
       <div class="card border-0 shadow-sm mb-4">
         <div class="card-body p-4">
-          <h6 class="fw-semibold mb-3">Pending Delegate Requests</h6>
-          <p class="text-muted small">These are delegation requests sent to you that require your acceptance or rejection.</p>
-
-          {% if pending_delegations %}
-            <div class="list-group mb-3">
-              {% for d in pending_delegations %}
-                <div class="list-group-item">
-                  <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                      <strong>{{ d.data_subject.get_full_name }}</strong>
-                      <br>
-                      <small class="text-muted">{{ d.data_subject.email }}</small>
-                    </div>
-                    <form method="POST" class="d-flex gap-2">
-                      {% csrf_token %}
-                      <input type="hidden" name="delegation_id" value="{{ d.id }}">
-                      <button type="submit" name="action" value="accept" class="btn btn-success btn-sm">
-                        <i class="bi bi-check-circle me-1"></i> Accept
-                      </button>
-                      <button type="submit" name="action" value="reject" class="btn btn-outline-danger btn-sm">
-                        <i class="bi bi-x-circle me-1"></i> Reject
-                      </button>
-                    </form>
-                  </div>
-                </div>
-              {% endfor %}
-            </div>
-          {% else %}
-            <div class="text-muted">No pending delegate requests.</div>
-          {% endif %}
-        </div>
-      </div>
-
-      <!-- Section 2: Accepted Delegations Waiting for Activation -->
-      <div class="card border-0 shadow-sm mb-4">
-        <div class="card-body p-4">
-          <h6 class="fw-semibold mb-3">Accepted Delegations Waiting for Activation</h6>
-          <p class="text-muted small">These delegations you have accepted. Request activation to act on behalf of the data subject.</p>
+          <h6 class="fw-semibold mb-3">Request Activation</h6>
+          <p class="text-muted small">Select an accepted delegation to request activation. You must provide a reason for activation.</p>
 
           {% if accepted_delegations %}
             <div class="table-responsive">
@@ -61,8 +25,9 @@
                 <thead>
                   <tr>
                     <th>Data Subject</th>
-                    <th>Status</th>
+                    <th>Delegate</th>
                     <th>Created At</th>
+                    <th>Status</th>
                     <th>Action</th>
                   </tr>
                 </thead>
@@ -74,8 +39,13 @@
                         <br>
                         <small class="text-muted">{{ d.data_subject.email }}</small>
                       </td>
-                      <td><span class="badge bg-success">Accepted</span></td>
+                      <td>
+                        {{ d.proxy.get_full_name }}
+                        <br>
+                        <small class="text-muted">{{ d.proxy.email }}</small>
+                      </td>
                       <td>{{ d.created_at|date:"Y-m-d H:i" }}</td>
+                      <td><span class="badge bg-success">Accepted</span></td>
                       <td>
                         {% if d.id in pending_activations %}
                           <span class="badge bg-secondary">Activation pending</span>
@@ -97,6 +67,7 @@
                                   <input type="hidden" name="delegation_id" value="{{ d.id }}">
                                   <div class="modal-body">
                                     <p><strong>Data Subject:</strong> {{ d.data_subject.get_full_name }}</p>
+                                    <p><strong>Delegate:</strong> {{ d.proxy.get_full_name }}</p>
                                     <div class="mb-3">
                                       <label for="reason{{ d.id }}" class="form-label">Reason for activation</label>
                                       <textarea class="form-control" id="reason{{ d.id }}" name="reason" rows="3" required placeholder="Explain why activation is needed..."></textarea>
@@ -118,23 +89,24 @@
               </table>
             </div>
           {% else %}
-            <div class="text-muted">No accepted delegations waiting for activation.</div>
+            <div class="text-muted">No accepted delegations available for activation.</div>
           {% endif %}
         </div>
       </div>
 
-      <!-- Section 3: Pending Activation Requests (from doctor/processor) -->
+      <!-- Section 2: Pending Confirmations -->
       <div class="card border-0 shadow-sm">
         <div class="card-body p-4">
-          <h6 class="fw-semibold mb-3">Pending Activation Requests</h6>
-          <p class="text-muted small">These are activation requests from doctor/processor that require your confirmation or rejection. You cannot process requests you submitted.</p>
+          <h6 class="fw-semibold mb-3">Pending Confirmations</h6>
+          <p class="text-muted small">These are activation requests submitted by others that require your confirmation or rejection. You cannot process requests you submitted.</p>
 
-          {% if pending_activation_requests %}
+          {% if pending_requests %}
             <div class="table-responsive">
               <table class="table table-sm">
                 <thead>
                   <tr>
                     <th>Data Subject</th>
+                    <th>Delegate</th>
                     <th>Requested By</th>
                     <th>Reason</th>
                     <th>Created At</th>
@@ -142,12 +114,17 @@
                   </tr>
                 </thead>
                 <tbody>
-                  {% for r in pending_activation_requests %}
+                  {% for r in pending_requests %}
                     <tr>
                       <td>
                         <strong>{{ r.delegation.data_subject.get_full_name }}</strong>
                         <br>
                         <small class="text-muted">{{ r.delegation.data_subject.email }}</small>
+                      </td>
+                      <td>
+                        {{ r.delegation.proxy.get_full_name }}
+                        <br>
+                        <small class="text-muted">{{ r.delegation.proxy.email }}</small>
                       </td>
                       <td>
                         {{ r.initiated_by.get_full_name }}
@@ -157,17 +134,17 @@
                       <td class="text-muted small" style="max-width: 200px;">{{ r.reason|truncatechars:80 }}</td>
                       <td>{{ r.created_at|date:"Y-m-d H:i" }}</td>
                       <td>
-                        <form method="POST" class="d-inline">
+                        <form method="POST" class="d-flex gap-2">
                           {% csrf_token %}
-                          <input type="hidden" name="action" value="confirm_activation">
+                          <input type="hidden" name="action" value="confirm">
                           <input type="hidden" name="activation_id" value="{{ r.id }}">
                           <button type="submit" class="btn btn-success btn-sm">
                             <i class="bi bi-check-circle me-1"></i> Confirm
                           </button>
                         </form>
-                        <form method="POST" class="d-inline">
+                        <form method="POST" class="d-flex gap-2">
                           {% csrf_token %}
-                          <input type="hidden" name="action" value="reject_activation">
+                          <input type="hidden" name="action" value="reject">
                           <input type="hidden" name="activation_id" value="{{ r.id }}">
                           <button type="submit" class="btn btn-outline-danger btn-sm">
                             <i class="bi bi-x-circle me-1"></i> Reject
@@ -185,13 +162,13 @@
         </div>
       </div>
 
-      <!-- Section 4: My Delegate Role History -->
+      <!-- Section 3: Processor Activation History -->
       <div class="card border-0 shadow-sm">
         <div class="card-body p-4">
-          <h6 class="fw-semibold mb-3">My Delegate Role History</h6>
-          <p class="text-muted small">History of delegations where I am the delegate.</p>
+          <h6 class="fw-semibold mb-3">My Activation History</h6>
+          <p class="text-muted small">History of activation requests you initiated or processed.</p>
 
-          {% if delegate_role_logs %}
+          {% if processor_history %}
             <div class="table-responsive">
               <table class="table table-sm">
                 <thead>
@@ -199,37 +176,25 @@
                     <th>Time</th>
                     <th>Action</th>
                     <th>Data Subject</th>
-                    <th>Performed By</th>
+                    <th>Delegate</th>
                     <th>Notes</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {% for log in delegate_role_logs %}
+                  {% for log in processor_history %}
                     <tr>
                       <td>{{ log.timestamp|date:"Y-m-d H:i" }}</td>
                       <td>
-                        {% if log.action == 'created' %}
-                          <span class="badge bg-primary">Created</span>
-                        {% elif log.action == 'accepted' %}
-                          <span class="badge bg-success">Accepted</span>
-                        {% elif log.action == 'rejected' %}
-                          <span class="badge bg-danger">Rejected</span>
-                        {% elif log.action == 'replaced' %}
-                          <span class="badge bg-info">Replaced</span>
-                        {% elif log.action == 'revoked' %}
-                          <span class="badge bg-warning">Revoked</span>
-                        {% elif log.action == 'activation_requested' %}
+                        {% if log.action == 'activation_requested' %}
                           <span class="badge bg-secondary">Activation Requested</span>
                         {% elif log.action == 'activation_confirmed' %}
                           <span class="badge bg-success">Activation Confirmed</span>
                         {% elif log.action == 'activation_rejected' %}
                           <span class="badge bg-danger">Activation Rejected</span>
-                        {% elif log.action == 'deactivated' %}
-                          <span class="badge bg-warning">Deactivated</span>
                         {% endif %}
                       </td>
                       <td>{{ log.delegation.data_subject.get_full_name }}</td>
-                      <td>{{ log.performed_by.get_full_name }}</td>
+                      <td>{{ log.delegation.proxy.get_full_name }}</td>
                       <td class="text-muted small">{{ log.notes|default:"—" }}</td>
                     </tr>
                   {% endfor %}
@@ -237,7 +202,7 @@
               </table>
             </div>
           {% else %}
-            <div class="text-muted">No delegate role history yet.</div>
+            <div class="text-muted">No activation history yet.</div>
           {% endif %}
         </div>
       </div>

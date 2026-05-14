@@ -26,10 +26,20 @@
 
 <div class="container my-4 px-4 px-lg-5" style="max-width: 1200px;">
 
+    {% if is_acting_as_proxy %}
+    <div class="alert alert-info mb-4">
+        <i class="bi bi-person-check me-2"></i>
+        <strong>You are acting on behalf of {{ effective_user.get_full_name }}.</strong>
+        You are viewing this data as an active delegate.
+    </div>
+    {% endif %}
+
     <div class="row mb-4">
         <div class="col-12 d-flex justify-content-between align-items-start flex-wrap gap-3">
             <div class="flex-grow-1">
-                <h4 class="fw-semibold">My Data</h4>
+                <h4 class="fw-semibold">
+                    {% if is_acting_as_proxy %}Data of {{ effective_user.get_full_name }}{% else %}My Data{% endif %}
+                </h4>
                 <p class="text-muted mb-1">View who has accessed your data and your current consent status.</p>
                 <p class="text-muted small">
                     This view provides transparency into how your personal data is accessed and governed under consent policies.

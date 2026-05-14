@@ -1,8 +1,9 @@
 from django.contrib import admin
-from users.models import User, RolePermission, Role, CustomPermission
+from users.models import User, RolePermission, Role, CustomPermission, DelegationActivation
 
 # Register your models here.
 admin.site.register(User)
+admin.site.register(DelegationActivation)
 
 class RolePermissionAdmin(admin.ModelAdmin):
     list_display = ('role', 'permission', 'id')

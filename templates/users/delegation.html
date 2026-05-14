@@ -60,12 +60,24 @@
               {% endif %}
             </table>
 
+            {% if current_delegation.status == 'active' %}
+            <form method="POST" action="{% url 'users:delegation_view' %}" class="d-flex gap-2 mt-3">
+              {% csrf_token %}
+              <button type="submit" name="action" value="deactivate" class="btn btn-outline-warning btn-sm">
+                <i class="bi bi-pause-circle me-1"></i> Deactivate
+              </button>
+              <button type="submit" name="action" value="revoke" class="btn btn-outline-danger btn-sm">
+                <i class="bi bi-x-circle me-1"></i> Revoke
+              </button>
+            </form>
+            {% elif current_delegation.status == 'pending' or current_delegation.status == 'accepted' %}
             <form method="POST" action="{% url 'users:delegation_view' %}" class="d-flex gap-2 mt-3">
               {% csrf_token %}
               <button type="submit" name="action" value="revoke" class="btn btn-outline-danger btn-sm">
                 <i class="bi bi-x-circle me-1"></i> Revoke
               </button>
             </form>
+            {% endif %}
 
           {% else %}
             <div class="text-muted">No proxy set</div>
@@ -122,10 +134,10 @@
       </div>
       {% endif %}
 
-      <!-- Delegation History -->
+      <!-- My Delegation History -->
       <div class="card border-0 shadow-sm">
         <div class="card-body p-4">
-          <h6 class="fw-semibold mb-3">Delegation History</h6>
+          <h6 class="fw-semibold mb-3">My Delegation History</h6>
 
           {% if delegation_logs %}
             <div class="table-responsive">
@@ -134,6 +146,7 @@
                   <tr>
                     <th>Time</th>
                     <th>Action</th>
+                    <th>Delegate</th>
                     <th>Performed By</th>
                     <th>Notes</th>
                   </tr>
@@ -145,14 +158,25 @@
                       <td>
                         {% if log.action == 'created' %}
                           <span class="badge bg-primary">Created</span>
+                        {% elif log.action == 'accepted' %}
+                          <span class="badge bg-success">Accepted</span>
+                        {% elif log.action == 'rejected' %}
+                          <span class="badge bg-danger">Rejected</span>
                         {% elif log.action == 'replaced' %}
                           <span class="badge bg-info">Replaced</span>
                         {% elif log.action == 'revoked' %}
                           <span class="badge bg-warning">Revoked</span>
                         {% elif log.action == 'activation_requested' %}
                           <span class="badge bg-secondary">Activation Requested</span>
+                        {% elif log.action == 'activation_confirmed' %}
+                          <span class="badge bg-success">Activation Confirmed</span>
+                        {% elif log.action == 'activation_rejected' %}
+                          <span class="badge bg-danger">Activation Rejected</span>
+                        {% elif log.action == 'deactivated' %}
+                          <span class="badge bg-warning">Deactivated</span>
                         {% endif %}
                       </td>
+                      <td>{{ log.delegation.proxy.get_full_name }}</td>
                       <td>{{ log.performed_by.get_full_name }}</td>
                       <td class="text-muted small">{{ log.notes|default:"—" }}</td>
                     </tr>
@@ -161,7 +185,7 @@
               </table>
             </div>
           {% else %}
-            <div class="text-muted">No delegation history</div>
+            <div class="text-muted">No delegation history yet.</div>
           {% endif %}
         </div>
       </div>

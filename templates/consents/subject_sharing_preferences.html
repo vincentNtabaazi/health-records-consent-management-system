@@ -2,9 +2,18 @@
 
 {% block content %}
 <div class="container py-4">
+
+  {% if is_acting_as_proxy %}
+  <div class="alert alert-info mb-4">
+    <i class="bi bi-person-check me-2"></i>
+    <strong>You are acting on behalf of {{ effective_user.get_full_name }}.</strong>
+    You are updating consent preferences as an active delegate.
+  </div>
+  {% endif %}
+
   <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
     <div>
-      <h2 class="mb-1">My sharing preferences</h2>
+      <h2 class="mb-1">{% if is_acting_as_proxy %}Consent Preferences of {{ effective_user.get_full_name }}{% else %}My sharing preferences{% endif %}</h2>
       <p class="text-muted mb-0">Choose which role-permissions you agree to share by default. Matching requests will be auto-approved.</p>
     </div>
     {% if is_own_preferences %}

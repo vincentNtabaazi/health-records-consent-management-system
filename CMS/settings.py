@@ -69,6 +69,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'pages.templatetags.context_processors.subject_context',
+                'users.context_processors.acting_context',
             ],
         },
     },
@@ -83,7 +84,7 @@ WSGI_APPLICATION = 'CMS.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'cms_backup',
+        'NAME': 'cms',
         'USER': 'root',
         'PASSWORD': 'Great2025',
         'HOST': 'localhost',
