@@ -1,4 +1,5 @@
 from django.db.models import Q
+from django.db import transaction
 from django.utils import timezone
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
@@ -7,13 +8,16 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.hashers import make_password
 
 from django.contrib.auth import get_user_model
-from .models import Role, CustomPermission, RolePermission, Delegation, DelegationLog
+from .models import Role, CustomPermission, RolePermission, Delegation, DelegationLog, DelegationActivation
 from .forms import SignupForm, LoginForm, ProfileForm, ChangePasswordForm, DelegateForm
 from .utils import authenticate
 from django.core.mail import send_mail
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.conf import settings
+
+# Import processor activation view
+from .views_activation import activation_requests_view
 
 User = get_user_model()
 
@@ -274,6 +278,21 @@ def delegation_view(request):
             messages.success(request, 'Delegation revoked.')
             return redirect('users:delegation_view')
 
+        # === Deactivate (only for active delegation) ===
+        if action == 'deactivate' and current_delegation and current_delegation.status == 'active':
+            current_delegation.status = 'accepted'
+            current_delegation.save(update_fields=['status'])
+
+            DelegationLog.objects.create(
+                delegation=current_delegation,
+                action='deactivated',
+                performed_by=request.user,
+                notes=f'Deactivated delegation to {current_delegation.proxy.get_full_name()}'
+            )
+
+            messages.success(request, 'Delegation deactivated. You can reactivate later if needed.')
+            return redirect('users:delegation_view')
+
     # Get delegation operation history
     delegation_logs = DelegationLog.objects.filter(
         delegation__data_subject=request.user
@@ -288,7 +307,7 @@ def delegation_view(request):
 @login_required(login_url="users:login_view")
 def delegate_requests_view(request):
     """My Delegation Requests - Accept/Reject delegate requests and view accepted delegations."""
-    # Check: only subject role can access
+    # Check: only subject role can access (delegate B has role='subject')
     user_role = getattr(getattr(request.user, 'role', None), 'name', None)
     if user_role != 'subject':
         messages.error(request, 'Only data subjects can access this page.', extra_tags='danger')
@@ -306,28 +325,53 @@ def delegate_requests_view(request):
         status='accepted'
     ).select_related('data_subject')
 
+    # Get pending activations to mark which delegations already have pending requests
+    pending_activations = DelegationActivation.objects.filter(
+        status='pending'
+    ).values_list('delegation_id', flat=True)
+
+    # Third section: pending activation requests from doctor/processor that this delegate B can process
+    # B can process requests where:
+    # - status = pending
+    # - delegation.proxy = current user (B)
+    # - initiated_by != current user (not own request)
+    pending_activation_requests = DelegationActivation.objects.filter(
+        status='pending',
+        delegation__proxy=request.user
+    ).exclude(
+        initiated_by=request.user
+    ).select_related('delegation__data_subject', 'initiated_by')
+
+    # Fourth section: delegate role history (as proxy)
+    delegate_role_logs = DelegationLog.objects.filter(
+        delegation__proxy=request.user
+    ).select_related('delegation', 'performed_by')[:50]
+
     if request.method == 'POST':
-        delegation_id = request.POST.get('delegation_id')
         action = request.POST.get('action')
+        delegation_id = request.POST.get('delegation_id')
+        activation_id = request.POST.get('activation_id')
 
-        # Get delegation - must belong to this proxy and have correct status
-        delegation = None
-        if action in ('accept', 'reject'):
-            delegation = Delegation.objects.filter(
-                id=delegation_id,
-                proxy=request.user,
-                status='pending'
-            ).first()
-        elif action == 'request_activation':
-            delegation = Delegation.objects.filter(
-                id=delegation_id,
-                proxy=request.user,
-                status='accepted'
-            ).first()
+        # Skip delegation check for activation confirm/reject actions
+        if action not in ('confirm_activation', 'reject_activation'):
+            # Get delegation - must belong to this proxy and have correct status
+            delegation = None
+            if action in ('accept', 'reject'):
+                delegation = Delegation.objects.filter(
+                    id=delegation_id,
+                    proxy=request.user,
+                    status='pending'
+                ).first()
+            elif action == 'request_activation':
+                delegation = Delegation.objects.filter(
+                    id=delegation_id,
+                    proxy=request.user,
+                    status='accepted'
+                ).first()
 
-        if not delegation:
-            messages.error(request, 'Invalid request.', extra_tags='danger')
-            return redirect('users:delegate_requests_view')
+            if not delegation:
+                messages.error(request, 'Invalid request.', extra_tags='danger')
+                return redirect('users:delegate_requests_view')
 
         if action == 'accept':
             delegation.status = 'accepted'
@@ -352,15 +396,110 @@ def delegate_requests_view(request):
             messages.success(request, 'Delegation rejected.')
 
         elif action == 'request_activation':
-            # Future Work - not implemented yet
-            messages.info(request, 'Activation request flow is not implemented yet.')
-            return redirect('users:delegate_requests_view')
+            # Delegate B requests activation for accepted delegation
+            reason = request.POST.get('reason', '').strip()
+
+            if not reason:
+                messages.error(request, 'Please provide a reason for activation.', extra_tags='danger')
+                return redirect('users:delegate_requests_view')
+
+            # Check: already has pending activation?
+            existing = DelegationActivation.objects.filter(
+                delegation=delegation,
+                status='pending'
+            ).first()
+            if existing:
+                messages.error(request, 'An activation request is already pending for this delegation.', extra_tags='danger')
+                return redirect('users:delegate_requests_view')
+
+            # Create activation request
+            DelegationActivation.objects.create(
+                delegation=delegation,
+                initiated_by=request.user,
+                reason=reason,
+                status='pending'
+            )
+
+            # Log action
+            DelegationLog.objects.create(
+                delegation=delegation,
+                action='activation_requested',
+                performed_by=request.user,
+                notes=reason
+            )
+
+            messages.success(request, 'Activation request submitted.')
+
+        elif action in ('confirm_activation', 'reject_activation'):
+            # Delegate B confirms/rejects activation request from doctor/processor
+            activation = DelegationActivation.objects.filter(
+                id=activation_id,
+                status='pending',
+                delegation__proxy=request.user
+            ).select_related('delegation').first()
+
+            if not activation:
+                messages.error(request, 'Invalid activation request.', extra_tags='danger')
+                return redirect('users:delegate_requests_view')
+
+            # Check: cannot process own request
+            if activation.initiated_by == request.user:
+                messages.error(request, 'You cannot process your own activation request.', extra_tags='danger')
+                return redirect('users:delegate_requests_view')
+
+            # Check: delegation still in accepted status
+            if activation.delegation.status != 'accepted':
+                messages.error(request, 'Delegation is no longer in accepted status.', extra_tags='danger')
+                return redirect('users:delegate_requests_view')
+
+            if action == 'confirm_activation':
+                with transaction.atomic():
+                    # Update delegation
+                    activation.delegation.status = 'active'
+                    activation.delegation.activated_at = timezone.now()
+                    activation.delegation.save(update_fields=['status', 'activated_at'])
+
+                    # Update activation
+                    activation.status = 'confirmed'
+                    activation.confirmed_by = request.user
+                    activation.confirmed_at = timezone.now()
+                    activation.save(update_fields=['status', 'confirmed_by', 'confirmed_at'])
+
+                    # Log action
+                    DelegationLog.objects.create(
+                        delegation=activation.delegation,
+                        action='activation_confirmed',
+                        performed_by=request.user,
+                        notes=f'Activation confirmed for {activation.delegation.data_subject.get_full_name()}'
+                    )
+
+                messages.success(request, 'Delegation activated successfully. You can now act on their behalf.')
+
+            elif action == 'reject_activation':
+                # Reject activation request
+                activation.status = 'rejected'
+                activation.confirmed_by = request.user
+                activation.confirmed_at = timezone.now()
+                activation.save(update_fields=['status', 'confirmed_by', 'confirmed_at'])
+
+                # Log action
+                DelegationLog.objects.create(
+                    delegation=activation.delegation,
+                    action='activation_rejected',
+                    performed_by=request.user,
+                    notes='Activation request rejected'
+                )
+
+                messages.success(request, 'Activation request rejected.')
 
         return redirect('users:delegate_requests_view')
 
     return render(request, 'users/delegate_requests.html', {
         'pending_delegations': pending_delegations,
         'accepted_delegations': accepted_delegations,
+        'pending_activations': list(pending_activations),
+        'pending_activation_requests': pending_activation_requests,
+        'delegate_role_logs': delegate_role_logs,
     })
 
 

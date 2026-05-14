@@ -141,6 +141,9 @@ class DelegationLog(models.Model):
         ('rejected', 'Rejected'),
         ('revoked', 'Revoked'),
         ('activation_requested', 'Activation Requested'),
+        ('activation_confirmed', 'Activation Confirmed'),
+        ('activation_rejected', 'Activation Rejected'),
+        ('deactivated', 'Deactivated'),
     ]
 
     delegation = models.ForeignKey(
@@ -159,3 +162,45 @@ class DelegationLog(models.Model):
 
     class Meta:
         ordering = ['-timestamp']
+
+
+class DelegationActivation(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('confirmed', 'Confirmed'),
+        ('rejected', 'Rejected'),
+    ]
+
+    delegation = models.ForeignKey(
+        Delegation,
+        on_delete=models.CASCADE,
+        related_name='activations'
+    )
+    initiated_by = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='initiated_activations'
+    )
+    confirmed_by = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name='confirmed_activations'
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending'
+    )
+    reason = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['delegation'],
+                condition=models.Q(status='pending'),
+                name='one_pending_activation_per_delegation'
+            )
+        ]
