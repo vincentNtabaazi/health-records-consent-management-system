@@ -15,14 +15,14 @@ A prototype system for managing patient data consent and enforcing governance po
 
 ## Installation
 
-**1. Clone the repository**
+**Clone the repository**
 
 ```bash
 git clone https://github.com/vincentNtabaazi/health-records-consent-management-system.git
 cd health-records-consent-management-system
 ```
 
-**2. Create and activate virtual environment**
+**Create and activate virtual environment**
 
 ```bash
 python -m venv .venv
@@ -34,44 +34,97 @@ python -m venv .venv
 source .venv/bin/activate
 ```
 
-**3. Install dependencies**
+## 1. Delete all migration files except __init__.py.
+
+MacOS/Linux
+```bash
+find . -path "*/migrations/*.py" -not -name "__init__.py" -delete
+find . -path "*/migrations/*.pyc" -delete
+```
+
+Windows Powershell
+```bash
+Get-ChildItem -Recurse -Path .\* -Include *.py |
+Where-Object {
+    $_.FullName -match "\\migrations\\" -and
+    $_.Name -ne "__init__.py"
+} | Remove-Item
+```
+
+## 2. Delete Python cache files (recommended)
+
+MacOS/Linux
+```bash
+find . -name "__pycache__" -type d -exec rm -r {} +
+```
+
+Windows Powershell
+```bash
+Get-ChildItem -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
+```
+
+## 3. Reinstall Django:
+```bash
+pip uninstall django -y
+pip install django
+```
 
 ```bash
-pip install django mysqlclient
+pip install pymysql
 ```
 
-**4. Create MySQL database**
-
-```sql
-CREATE DATABASE cms CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-```
-
-**5. Update database password**
-
-Open `CMS/settings.py` and update the `PASSWORD` field to match your MySQL root password.
-
-**6. Run migrations**
-
+## 4. Recreate migrations
 ```bash
 python manage.py makemigrations
+```
+
+## 5. Apply migrations
+```bash
 python manage.py migrate
 ```
 
-**7. Create superuser**
-
+## 6. Create admin user
 ```bash
 python manage.py createsuperuser
 ```
 
-**8. Start the server**
+## 7. Create the roles on the system
+```bash
+python manage.py create_roles  
+```  
 
+## 8. Assign the roles different permissions on the system
+```bash
+python manage.py assign_role_permissions
+```  
+
+## 9. Create demo users. After running this command user accounts and passwords stored in project home directory in a file called demo_user_credentials.txt
+```bash
+python manage.py create_demo_users
+```
+
+## 10. Create the permissions that different data subjects can give on their documents
+```bash
+python manage.py generate_medical_permissions
+```
+
+
+## 11. Create the medical records for data subjects. By default 100 records will be created for users with 1 to 5 as long as the user is a data subject.
+```bash
+python manage.py populate_medical_records
+```
+
+You can use this for a custom number of records and user ids, just change the numbers. but make sure the patient_end id exists so you must create 10 users before running this command
+```bash
+python manage.py populate_medical_records --num_records 200 --patient_start 1 --patient_end 10
+```
+
+## 12. Run the server.
 ```bash
 python manage.py runserver
 ```
 
-Visit `http://127.0.0.1:8000`
-
----
+Then you can login to the system and continue using the demo accounts
 
 ## Key Pages
 
